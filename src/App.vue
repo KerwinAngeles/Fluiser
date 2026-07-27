@@ -10,6 +10,7 @@ import AppBackground from '@/components/ui/AppBackground.vue'
 import TimerView from '@/views/TimerView.vue'
 import FocusModeView from '@/views/FocusModeView.vue'
 import { RouterView } from 'vue-router'
+import { SpeedInsights } from '@vercel/speed-insights/vue'
 
 const store     = useFluiserStore()
 const authStore = useAuthStore()
@@ -100,6 +101,7 @@ const outerGate = computed(() => {
     </div>
 
   </Transition>
+  <SpeedInsights />
 </template>
 
 <style scoped>
