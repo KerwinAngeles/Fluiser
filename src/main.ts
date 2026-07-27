@@ -4,6 +4,7 @@ import App from './App.vue'
 import router from './router'
 import './assets/main.css'
 import { useAuthStore } from '@/stores/auth'
+import { SpeedInsights } from '@vercel/speed-insights/vue'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -17,6 +18,7 @@ async function bootstrap() {
   // The watch in App.vue handles the router redirect and fluiser.init() once
   // the user is authenticated.
   await router.isReady()
+  app.component('SpeedInsights', SpeedInsights)
   app.mount('#app')
   await auth.init()
 }
