@@ -122,6 +122,19 @@ export interface HeatmapCell {
   due: number
 }
 
+export type TimerSegmentType = 'work' | 'pause' | 'break' | 'flow'
+
+export interface StoredSession {
+  date: string
+  ts: number
+  plannedSec: number
+  actualSec: number
+  energy: Energy
+  note: string
+  flowExtensions: number
+  journey: Array<{ type: TimerSegmentType; durationSec: number }>
+}
+
 export interface CategoryDef {
   id: CategoryId
   label: string

@@ -8,9 +8,15 @@ import { todayRef } from '@/composables/useToday'
 
 const TIMER_STORAGE_KEY = 'fluiser_timer'
 
+interface TimerSegment {
+  type: 'work' | 'pause' | 'break' | 'flow'
+  startAt: number
+  endAt?: number
+}
+
 interface TimerState {
   habitId: string
-  phase: 'work' | 'break' | 'review'
+  phase: 'work' | 'break' | 'review' | 'flow-check'
   currentSession: number
   remaining: number
   endAt: number | null   // wall-clock ms when current phase ends; null when paused/review
@@ -18,6 +24,8 @@ interface TimerState {
   workSec: number
   breakSec: number
   sessions: number
+  flowExtensions: number  // how many 5-min flow blocks were added
+  journey: TimerSegment[]
 }
 
 const today = () => new Date()
@@ -91,21 +99,24 @@ export const useFluiserStore = defineStore('fluiser', () => {
     else localStorage.removeItem(TIMER_STORAGE_KEY)
   }
 
+  const FLOW_CHECK_SEC = 12
+
   function _advancePhase() {
     const s = timerState.value
     if (!s) return
     _playBell()
+    const now = Date.now()
+    const sc = _closeSegment(s)
     if (s.phase === 'work') {
       if (s.currentSession >= s.sessions) {
-        timerState.value = { ...s, phase: 'review', remaining: 0, endAt: null }
-        if (timerMinimized.value) timerMinimized.value = false  // auto-expand for review
+        timerState.value = { ...sc, phase: 'flow-check', remaining: FLOW_CHECK_SEC, endAt: now + FLOW_CHECK_SEC * 1000 }
       } else if (s.breakSec > 0) {
-        timerState.value = { ...s, phase: 'break', remaining: s.breakSec, endAt: Date.now() + s.breakSec * 1000 }
+        timerState.value = { ...sc, phase: 'break', remaining: s.breakSec, endAt: now + s.breakSec * 1000, journey: [...sc.journey, { type: 'break' as const, startAt: now }] }
       } else {
-        timerState.value = { ...s, currentSession: s.currentSession + 1, remaining: s.workSec, endAt: Date.now() + s.workSec * 1000 }
+        timerState.value = { ...sc, currentSession: s.currentSession + 1, remaining: s.workSec, endAt: now + s.workSec * 1000, journey: [...sc.journey, { type: 'work' as const, startAt: now }] }
       }
     } else if (s.phase === 'break') {
-      timerState.value = { ...s, phase: 'work', currentSession: s.currentSession + 1, remaining: s.workSec, endAt: Date.now() + s.workSec * 1000 }
+      timerState.value = { ...sc, phase: 'work', currentSession: s.currentSession + 1, remaining: s.workSec, endAt: now + s.workSec * 1000, journey: [...sc.journey, { type: 'work' as const, startAt: now }] }
     }
     _saveTimer()
   }
@@ -115,7 +126,13 @@ export const useFluiserStore = defineStore('fluiser', () => {
     if (!s || s.paused || s.phase === 'review' || !s.endAt) return
     const now = Date.now()
     if (now >= s.endAt) {
-      _advancePhase()
+      if (s.phase === 'flow-check') {
+        timerState.value = { ..._closeSegment(s), phase: 'review', remaining: 0, endAt: null }
+        if (timerMinimized.value) timerMinimized.value = false
+        _saveTimer()
+      } else {
+        _advancePhase()
+      }
     } else {
       s.remaining = Math.ceil((s.endAt - now) / 1000)
     }
@@ -123,6 +140,11 @@ export const useFluiserStore = defineStore('fluiser', () => {
 
   function _fastForward(s: TimerState): TimerState {
     if (s.paused || !s.endAt || s.phase === 'review') return s
+    // If restoring in flow-check: keep if still live, else go to review
+    if (s.phase === 'flow-check') {
+      if (Date.now() >= s.endAt) return { ...s, phase: 'review', remaining: 0, endAt: null }
+      return { ...s, remaining: Math.max(0, Math.ceil((s.endAt - Date.now()) / 1000)) }
+    }
     let { phase, currentSession, workSec, breakSec, sessions, endAt } = s
     const now = Date.now()
     while (now >= endAt && phase !== 'review') {
@@ -152,6 +174,20 @@ export const useFluiserStore = defineStore('fluiser', () => {
         _timerInterval = setInterval(_tick, 500)
       }
     } catch { localStorage.removeItem(TIMER_STORAGE_KEY) }
+  }
+
+  function _closeSegment(s: TimerState): TimerState {
+    if (!s.journey.length) return s
+    const last = s.journey[s.journey.length - 1]
+    if (last.endAt) return s
+    return { ...s, journey: [...s.journey.slice(0, -1), { ...last, endAt: Date.now() }] }
+  }
+
+  function _lastActiveSegType(journey: TimerSegment[]): TimerSegment['type'] {
+    for (let i = journey.length - 1; i >= 0; i--) {
+      if (journey[i].type !== 'pause') return journey[i].type
+    }
+    return 'work'
   }
 
   function update(mut: (d: StoreData) => StoreData | void) {
@@ -468,7 +504,8 @@ export const useFluiserStore = defineStore('fluiser', () => {
     timerState.value = {
       habitId: habit.id, phase: 'work', currentSession: 1,
       remaining: workSec, endAt: Date.now() + workSec * 1000,
-      paused: false, workSec, breakSec, sessions,
+      paused: false, workSec, breakSec, sessions, flowExtensions: 0,
+      journey: [{ type: 'work', startAt: Date.now() }],
     }
     timerMinimized.value = false
     _timerInterval = setInterval(_tick, 500)
@@ -485,14 +522,30 @@ export const useFluiserStore = defineStore('fluiser', () => {
   function pauseTimer() {
     const s = timerState.value
     if (!s || s.paused || s.phase === 'review') return
-    timerState.value = { ...s, paused: true, remaining: s.endAt ? Math.ceil((s.endAt - Date.now()) / 1000) : s.remaining, endAt: null }
+    const now = Date.now()
+    const sc = _closeSegment(s)
+    timerState.value = {
+      ...sc,
+      paused: true,
+      remaining: s.endAt ? Math.ceil((s.endAt - now) / 1000) : s.remaining,
+      endAt: null,
+      journey: [...sc.journey, { type: 'pause' as const, startAt: now }],
+    }
     _saveTimer()
   }
 
   function resumeTimer() {
     const s = timerState.value
     if (!s || !s.paused || s.phase === 'review') return
-    timerState.value = { ...s, paused: false, endAt: Date.now() + s.remaining * 1000 }
+    const now = Date.now()
+    const sc = _closeSegment(s)
+    const resumeType = _lastActiveSegType(sc.journey)
+    timerState.value = {
+      ...sc,
+      paused: false,
+      endAt: now + s.remaining * 1000,
+      journey: [...sc.journey, { type: resumeType, startAt: now }],
+    }
     if (!_timerInterval) _timerInterval = setInterval(_tick, 500)
     _saveTimer()
   }
@@ -500,18 +553,19 @@ export const useFluiserStore = defineStore('fluiser', () => {
   function skipTimerSession() {
     const s = timerState.value
     if (!s || s.phase === 'review') return
-    const endAt = s.paused ? null : Date.now()
+    const now = Date.now()
+    const sc = _closeSegment(s)
     if (s.phase === 'work') {
       if (s.currentSession >= s.sessions) {
-        timerState.value = { ...s, phase: 'review', remaining: 0, endAt: null }
+        timerState.value = { ...sc, phase: 'review', remaining: 0, endAt: null }
         if (timerMinimized.value) timerMinimized.value = false
       } else if (s.breakSec > 0) {
-        timerState.value = { ...s, phase: 'break', remaining: s.breakSec, endAt: endAt ? endAt + s.breakSec * 1000 : null }
+        timerState.value = { ...sc, phase: 'break', remaining: s.breakSec, endAt: s.paused ? null : now + s.breakSec * 1000, journey: [...sc.journey, { type: 'break' as const, startAt: now }] }
       } else {
-        timerState.value = { ...s, currentSession: s.currentSession + 1, remaining: s.workSec, endAt: endAt ? endAt + s.workSec * 1000 : null }
+        timerState.value = { ...sc, currentSession: s.currentSession + 1, remaining: s.workSec, endAt: s.paused ? null : now + s.workSec * 1000, journey: [...sc.journey, { type: 'work' as const, startAt: now }] }
       }
-    } else if (s.phase === 'break') {
-      timerState.value = { ...s, phase: 'work', currentSession: s.currentSession + 1, remaining: s.workSec, endAt: endAt ? endAt + s.workSec * 1000 : null }
+    } else if (s.phase === 'break' || s.phase === 'flow-check') {
+      timerState.value = { ...sc, phase: 'work', currentSession: s.phase === 'break' ? s.currentSession + 1 : s.currentSession, remaining: s.workSec, endAt: s.paused ? null : now + s.workSec * 1000, journey: [...sc.journey, { type: 'work' as const, startAt: now }] }
     }
     _saveTimer()
   }
@@ -519,8 +573,25 @@ export const useFluiserStore = defineStore('fluiser', () => {
   function finishTimerNow() {
     const s = timerState.value
     if (!s) return
-    timerState.value = { ...s, phase: 'review', remaining: 0, endAt: null }
+    timerState.value = { ..._closeSegment(s), phase: 'review', remaining: 0, endAt: null }
     if (timerMinimized.value) timerMinimized.value = false
+    _saveTimer()
+  }
+
+  function continueFlow() {
+    const s = timerState.value
+    if (!s || s.phase !== 'flow-check') return
+    const now = Date.now()
+    const flowSec = 5 * 60
+    timerState.value = {
+      ...s,
+      phase: 'work',
+      remaining: flowSec,
+      endAt: now + flowSec * 1000,
+      paused: false,
+      flowExtensions: (s.flowExtensions ?? 0) + 1,
+      journey: [...s.journey, { type: 'flow' as const, startAt: now }],
+    }
     _saveTimer()
   }
 
@@ -649,7 +720,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
     upsertHabit, deleteHabit,
     writeJournal, writeCheckin, writeSettings,
     setFocus, startTimer, stopTimer,
-    pauseTimer, resumeTimer, skipTimerSession, finishTimerNow,
+    pauseTimer, resumeTimer, skipTimerSession, finishTimerNow, continueFlow,
     minimizeTimer, expandTimer,
     upsertMeta, deleteMeta,
     upsertVisionItem, deleteVisionItem,
