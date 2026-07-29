@@ -6,6 +6,20 @@ import type { Habit, Completion, JournalEntry, Checkin, StoreData, StreakInfo, H
 import { CATEGORIES } from '@/types'
 import { todayRef } from '@/composables/useToday'
 
+const TIMER_STORAGE_KEY = 'fluiser_timer'
+
+interface TimerState {
+  habitId: string
+  phase: 'work' | 'break' | 'review'
+  currentSession: number
+  remaining: number
+  endAt: number | null   // wall-clock ms when current phase ends; null when paused/review
+  paused: boolean
+  workSec: number
+  breakSec: number
+  sessions: number
+}
+
 const today = () => new Date()
 export const ymd = (d?: Date | string): string => {
   const dt = d instanceof Date ? d : d ? new Date(d) : new Date()
@@ -46,8 +60,99 @@ const emptyData = (): StoreData => ({
 
 export const useFluiserStore = defineStore('fluiser', () => {
   const data = ref<StoreData>(emptyData())
-  const activeTimer = ref<Habit | null>(null)
+  const timerState = ref<TimerState | null>(null)
+  const timerMinimized = ref(false)
   const loading = ref(false)
+  let _timerInterval: ReturnType<typeof setInterval> | null = null
+
+  // Derived from timerState — replaces the old activeTimer ref
+  const activeTimer = computed((): Habit | null => {
+    if (!timerState.value) return null
+    return data.value.habits.find(h => h.id === timerState.value!.habitId) ?? null
+  })
+
+  function _playBell() {
+    try {
+      const ctx = new AudioContext()
+      const o = ctx.createOscillator()
+      const g = ctx.createGain()
+      o.frequency.value = 660; o.type = 'sine'
+      g.gain.setValueAtTime(0, ctx.currentTime)
+      g.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.02)
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.4)
+      o.connect(g); g.connect(ctx.destination)
+      o.start(); o.stop(ctx.currentTime + 1.5)
+      setTimeout(() => ctx.close(), 1600)
+    } catch {}
+  }
+
+  function _saveTimer() {
+    if (timerState.value) localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(timerState.value))
+    else localStorage.removeItem(TIMER_STORAGE_KEY)
+  }
+
+  function _advancePhase() {
+    const s = timerState.value
+    if (!s) return
+    _playBell()
+    if (s.phase === 'work') {
+      if (s.currentSession >= s.sessions) {
+        timerState.value = { ...s, phase: 'review', remaining: 0, endAt: null }
+        if (timerMinimized.value) timerMinimized.value = false  // auto-expand for review
+      } else if (s.breakSec > 0) {
+        timerState.value = { ...s, phase: 'break', remaining: s.breakSec, endAt: Date.now() + s.breakSec * 1000 }
+      } else {
+        timerState.value = { ...s, currentSession: s.currentSession + 1, remaining: s.workSec, endAt: Date.now() + s.workSec * 1000 }
+      }
+    } else if (s.phase === 'break') {
+      timerState.value = { ...s, phase: 'work', currentSession: s.currentSession + 1, remaining: s.workSec, endAt: Date.now() + s.workSec * 1000 }
+    }
+    _saveTimer()
+  }
+
+  function _tick() {
+    const s = timerState.value
+    if (!s || s.paused || s.phase === 'review' || !s.endAt) return
+    const now = Date.now()
+    if (now >= s.endAt) {
+      _advancePhase()
+    } else {
+      s.remaining = Math.ceil((s.endAt - now) / 1000)
+    }
+  }
+
+  function _fastForward(s: TimerState): TimerState {
+    if (s.paused || !s.endAt || s.phase === 'review') return s
+    let { phase, currentSession, workSec, breakSec, sessions, endAt } = s
+    const now = Date.now()
+    while (now >= endAt && phase !== 'review') {
+      if (phase === 'work') {
+        if (currentSession >= sessions) { phase = 'review'; break }
+        else if (breakSec > 0) { endAt += breakSec * 1000; phase = 'break' }
+        else { currentSession++; endAt += workSec * 1000 }
+      } else { currentSession++; phase = 'work'; endAt += workSec * 1000 }
+    }
+    if (phase === 'review') return { ...s, phase, currentSession, remaining: 0, endAt: null }
+    return { ...s, phase, currentSession, remaining: Math.max(0, Math.ceil((endAt - now) / 1000)), endAt }
+  }
+
+  function restoreTimerFromStorage() {
+    try {
+      const raw = localStorage.getItem(TIMER_STORAGE_KEY)
+      if (!raw) return
+      let s = JSON.parse(raw) as TimerState
+      if (!data.value.habits.find(h => h.id === s.habitId)) {
+        localStorage.removeItem(TIMER_STORAGE_KEY); return
+      }
+      if (!s.paused && s.endAt) s = _fastForward(s)
+      timerState.value = s
+      timerMinimized.value = true
+      if (!s.paused && s.phase !== 'review') {
+        if (_timerInterval) clearInterval(_timerInterval)
+        _timerInterval = setInterval(_tick, 500)
+      }
+    } catch { localStorage.removeItem(TIMER_STORAGE_KEY) }
+  }
 
   function update(mut: (d: StoreData) => StoreData | void) {
     const copy = JSON.parse(JSON.stringify(data.value)) as StoreData
@@ -196,6 +301,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
           ],
           weeklyReviews: {},
         }
+        restoreTimerFromStorage()
         return
       }
 
@@ -221,6 +327,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
         visionItems,
         weeklyReviews,
       }
+      restoreTimerFromStorage()
     } finally {
       loading.value = false
     }
@@ -228,7 +335,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
 
   function reset() {
     data.value = emptyData()
-    activeTimer.value = null
+    stopTimer()
   }
 
   function isDone(habitId: string, date = ymd()): boolean {
@@ -352,8 +459,73 @@ export const useFluiserStore = defineStore('fluiser', () => {
     update((d) => { d.focusOn = on })
   }
 
-  function startTimer(habit: Habit) { activeTimer.value = habit }
-  function stopTimer() { activeTimer.value = null }
+  function startTimer(habit: Habit) {
+    if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null }
+    const cfg = habit.timer ?? { enabled: true, duration: 25, sessions: 1, breakDuration: 0 }
+    const workSec = (cfg.duration || 25) * 60
+    const breakSec = (cfg.breakDuration || 0) * 60
+    const sessions = cfg.sessions || 1
+    timerState.value = {
+      habitId: habit.id, phase: 'work', currentSession: 1,
+      remaining: workSec, endAt: Date.now() + workSec * 1000,
+      paused: false, workSec, breakSec, sessions,
+    }
+    timerMinimized.value = false
+    _timerInterval = setInterval(_tick, 500)
+    _saveTimer()
+  }
+
+  function stopTimer() {
+    if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null }
+    timerState.value = null
+    timerMinimized.value = false
+    localStorage.removeItem(TIMER_STORAGE_KEY)
+  }
+
+  function pauseTimer() {
+    const s = timerState.value
+    if (!s || s.paused || s.phase === 'review') return
+    timerState.value = { ...s, paused: true, remaining: s.endAt ? Math.ceil((s.endAt - Date.now()) / 1000) : s.remaining, endAt: null }
+    _saveTimer()
+  }
+
+  function resumeTimer() {
+    const s = timerState.value
+    if (!s || !s.paused || s.phase === 'review') return
+    timerState.value = { ...s, paused: false, endAt: Date.now() + s.remaining * 1000 }
+    if (!_timerInterval) _timerInterval = setInterval(_tick, 500)
+    _saveTimer()
+  }
+
+  function skipTimerSession() {
+    const s = timerState.value
+    if (!s || s.phase === 'review') return
+    const endAt = s.paused ? null : Date.now()
+    if (s.phase === 'work') {
+      if (s.currentSession >= s.sessions) {
+        timerState.value = { ...s, phase: 'review', remaining: 0, endAt: null }
+        if (timerMinimized.value) timerMinimized.value = false
+      } else if (s.breakSec > 0) {
+        timerState.value = { ...s, phase: 'break', remaining: s.breakSec, endAt: endAt ? endAt + s.breakSec * 1000 : null }
+      } else {
+        timerState.value = { ...s, currentSession: s.currentSession + 1, remaining: s.workSec, endAt: endAt ? endAt + s.workSec * 1000 : null }
+      }
+    } else if (s.phase === 'break') {
+      timerState.value = { ...s, phase: 'work', currentSession: s.currentSession + 1, remaining: s.workSec, endAt: endAt ? endAt + s.workSec * 1000 : null }
+    }
+    _saveTimer()
+  }
+
+  function finishTimerNow() {
+    const s = timerState.value
+    if (!s) return
+    timerState.value = { ...s, phase: 'review', remaining: 0, endAt: null }
+    if (timerMinimized.value) timerMinimized.value = false
+    _saveTimer()
+  }
+
+  function minimizeTimer() { timerMinimized.value = true }
+  function expandTimer() { timerMinimized.value = false }
 
   const dueToday = computed((): Habit[] => {
     const now = new Date(todayRef.value + 'T00:00:00')
@@ -471,12 +643,14 @@ export const useFluiserStore = defineStore('fluiser', () => {
   }
 
   return {
-    data, activeTimer, loading,
+    data, activeTimer, timerState, timerMinimized, loading,
     update, isDone, completion,
     toggleHabit, setEnergy, setNote,
     upsertHabit, deleteHabit,
     writeJournal, writeCheckin, writeSettings,
     setFocus, startTimer, stopTimer,
+    pauseTimer, resumeTimer, skipTimerSession, finishTimerNow,
+    minimizeTimer, expandTimer,
     upsertMeta, deleteMeta,
     upsertVisionItem, deleteVisionItem,
     saveWeeklyReview, habitLinkedMetas,

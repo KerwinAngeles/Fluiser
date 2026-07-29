@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useFluiserStore, ymd } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
-import { ICON_MAP, CheckIcon, XIcon, ChevronIcon } from '@/components/icons/AppIcons'
+import { ICON_MAP, CheckIcon, XIcon, ChevronDownIcon, PlayIcon, PauseIcon, SkipFwdIcon, StopCircleIcon } from '@/components/icons/AppIcons'
 import EnergyPicker from '@/components/ui/EnergyPicker.vue'
 import type { Energy } from '@/types'
 
@@ -10,15 +10,17 @@ const store = useFluiserStore()
 const t = useT()
 
 const habit = computed(() => store.activeTimer!)
-const cfg = computed(() => habit.value?.timer ?? { duration: 25, sessions: 1, breakDuration: 0 })
-const sessions = computed(() => cfg.value.sessions || 1)
-const workSec = computed(() => (cfg.value.duration || 25) * 60)
-const breakSec = computed(() => (cfg.value.breakDuration || 0) * 60)
+const ts = computed(() => store.timerState!)
 
-const currentSession = ref(1)
-const phase = ref<'work' | 'break' | 'review'>('work')
-const remaining = ref(0)
-const paused = ref(false)
+const phase = computed(() => ts.value?.phase ?? 'work')
+const remaining = computed(() => ts.value?.remaining ?? 0)
+const currentSession = computed(() => ts.value?.currentSession ?? 1)
+const paused = computed(() => ts.value?.paused ?? false)
+const sessions = computed(() => ts.value?.sessions ?? 1)
+const workSec = computed(() => ts.value?.workSec ?? 0)
+const breakSec = computed(() => ts.value?.breakSec ?? 0)
+const totalSec = computed(() => phase.value === 'break' ? breakSec.value : workSec.value)
+
 const energy = ref<Energy>('effort')
 const note = ref('')
 
@@ -36,52 +38,11 @@ const phaseLabel = computed(() => {
 
 const R = 148
 const CIRC = 2 * Math.PI * R
-const totalSec = computed(() => (phase.value === 'break' ? breakSec.value : workSec.value))
-const ringValue = computed(() => (totalSec.value ? 1 - remaining.value / totalSec.value : 1))
+const ringValue = computed(() => totalSec.value ? 1 - remaining.value / totalSec.value : 1)
 const dashOffset = computed(() => CIRC * (1 - ringValue.value))
 
 const mm = computed(() => String(Math.floor(remaining.value / 60)).padStart(2, '0'))
 const ss = computed(() => String(remaining.value % 60).padStart(2, '0'))
-
-let interval: ReturnType<typeof setInterval> | null = null
-
-function tick() {
-  if (remaining.value <= 0) { advancePhase(); return }
-  remaining.value--
-}
-
-function advancePhase() {
-  if (phase.value === 'work') {
-    playBell()
-    if (currentSession.value >= sessions.value) {
-      phase.value = 'review'
-    } else if (breakSec.value > 0) {
-      phase.value = 'break'; remaining.value = breakSec.value
-    } else {
-      currentSession.value++; remaining.value = workSec.value
-    }
-  } else if (phase.value === 'break') {
-    playBell()
-    currentSession.value++; phase.value = 'work'; remaining.value = workSec.value
-  }
-}
-
-function togglePause() { paused.value = !paused.value }
-
-function skipSession() {
-  if (phase.value === 'work') {
-    if (currentSession.value >= sessions.value) phase.value = 'review'
-    else if (breakSec.value > 0) { phase.value = 'break'; remaining.value = breakSec.value }
-    else { currentSession.value++; remaining.value = workSec.value }
-  } else if (phase.value === 'break') {
-    currentSession.value++; phase.value = 'work'; remaining.value = workSec.value
-  }
-}
-
-function finishNow() {
-  if (interval) { clearInterval(interval); interval = null }
-  phase.value = 'review'
-}
 
 function completeHabit() {
   if (habit.value) {
@@ -90,58 +51,20 @@ function completeHabit() {
   }
 }
 
-function cancelTimer() { store.stopTimer() }
-
-function playBell() {
-  try {
-    const ctx = new AudioContext()
-    const o = ctx.createOscillator()
-    const g = ctx.createGain()
-    o.frequency.value = 660; o.type = 'sine'
-    g.gain.setValueAtTime(0, ctx.currentTime)
-    g.gain.linearRampToValueAtTime(0.18, ctx.currentTime + 0.02)
-    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.4)
-    o.connect(g); g.connect(ctx.destination)
-    o.start(); o.stop(ctx.currentTime + 1.5)
-    setTimeout(() => ctx.close(), 1600)
-  } catch {}
+function onKey(e: KeyboardEvent) {
+  if (e.key === 'Escape') store.minimizeTimer()
 }
 
-watch(paused, (val) => {
-  if (val) {
-    if (interval) { clearInterval(interval); interval = null }
-  } else if (phase.value !== 'review') {
-    interval = setInterval(tick, 1000)
-  }
-})
-
-watch(phase, (val) => {
-  if (val === 'review' && interval) { clearInterval(interval); interval = null }
-})
-
-function onKey(e: KeyboardEvent) { if (e.key === 'Escape') cancelTimer() }
-
-onMounted(() => {
-  remaining.value = workSec.value
-  interval = setInterval(tick, 1000)
-  document.addEventListener('keydown', onKey)
-})
-
-onUnmounted(() => {
-  if (interval) clearInterval(interval)
-  document.removeEventListener('keydown', onKey)
-})
+onMounted(() => document.addEventListener('keydown', onKey))
+onUnmounted(() => document.removeEventListener('keydown', onKey))
 </script>
 
 <template>
   <div class="timer-gate">
-    <!-- Back button (top-left glass pill) -->
-    <button
-      class="timer-back-btn"
-      @click="cancelTimer"
-    >
-      <ChevronIcon :size="13" style="transform:rotate(180deg)" />
-      {{ t('Volver', 'Back') }}
+    <!-- Minimize button (top-left) -->
+    <button class="timer-back-btn" @click="store.minimizeTimer()">
+      <ChevronDownIcon :size="13" />
+      {{ t('Minimizar', 'Minimize') }}
     </button>
 
     <!-- ── REVIEW SCREEN ── -->
@@ -158,7 +81,7 @@ onUnmounted(() => {
         {{ habit?.name }}
       </h1>
       <div class="serif" style="font-size:17px; color:var(--text-2); font-style:italic; margin-bottom:32px">
-        {{ sessions }} {{ sessions === 1 ? t('sesión completa', 'complete session') : t('sesiones completas', 'complete sessions') }} · {{ cfg.duration * sessions }} {{ t('minutos contigo mismo.', 'minutes with yourself.') }}
+        {{ sessions }} {{ sessions === 1 ? t('sesión completa', 'complete session') : t('sesiones completas', 'complete sessions') }} · {{ (ts?.workSec ?? 0) / 60 * sessions }} {{ t('minutos contigo mismo.', 'minutes with yourself.') }}
       </div>
 
       <div style="margin-bottom:20px; text-align:left">
@@ -244,20 +167,17 @@ onUnmounted(() => {
 
       <!-- Controls -->
       <div style="display:flex; align-items:center; justify-content:center; gap:10px">
-        <!-- Pausar / Reanudar (primary) -->
         <button
           class="timer-ctrl-btn timer-ctrl-primary"
           :style="{ background: phaseColor }"
-          @click="togglePause"
+          @click="paused ? store.resumeTimer() : store.pauseTimer()"
         >
           {{ paused ? `▶ ${t('Reanudar', 'Resume')}` : `‖ ${t('Pausar', 'Pause')}` }}
         </button>
-        <!-- Saltar -->
-        <button class="timer-ctrl-btn" @click="skipSession">
-          <ChevronIcon :size="12" /> {{ t('Saltar', 'Skip') }}
+        <button class="timer-ctrl-btn" @click="store.skipTimerSession()">
+          <SkipFwdIcon :size="12" /> {{ t('Saltar', 'Skip') }}
         </button>
-        <!-- Terminar -->
-        <button class="timer-ctrl-btn" @click="finishNow">
+        <button class="timer-ctrl-btn" @click="store.finishTimerNow()">
           <CheckIcon :size="12" /> {{ t('Terminar', 'Finish') }}
         </button>
       </div>
@@ -265,7 +185,7 @@ onUnmounted(() => {
       <!-- Cancel link -->
       <button
         style="margin-top:40px; background:transparent; border:none; color:var(--text-3); font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px"
-        @click="cancelTimer"
+        @click="store.stopTimer()"
       >
         <XIcon :size="11" /> {{ t('Cancelar sesión', 'Cancel session') }}
       </button>
