@@ -9,6 +9,8 @@ const router = createRouter({
     { path: '/', name: 'home', component: DashboardView, meta: { requiresAuth: true } },
     { path: '/dashboard', redirect: '/' },
     { path: '/habits', name: 'habits', component: () => import('@/views/HabitsView.vue'), meta: { requiresAuth: true } },
+    { path: '/habits/new', name: 'habit-new', component: () => import('@/views/HabitEditorView.vue'), meta: { requiresAuth: true } },
+    { path: '/habits/:id/edit', name: 'habit-edit', component: () => import('@/views/HabitEditorView.vue'), meta: { requiresAuth: true } },
     { path: '/heatmap', name: 'heatmap', component: () => import('@/views/HeatmapView.vue'), meta: { requiresAuth: true } },
     { path: '/goals', name: 'goals', component: () => import('@/views/GoalsView.vue'), meta: { requiresAuth: true } },
     { path: '/flow', name: 'flow', component: () => import('@/views/FlowJournalView.vue'), meta: { requiresAuth: true } },

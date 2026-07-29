@@ -1,41 +1,33 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT, useCatLabel } from '@/composables/useLang'
 import { useTheme } from '@/composables/useTheme'
 import { useToday } from '@/composables/useToday'
 import { CATEGORIES } from '@/types'
 import { ICON_MAP, PlusIcon, FlameIcon } from '@/components/icons/AppIcons'
-import HabitEditorModal from '@/components/modals/HabitEditorModal.vue'
 import type { Habit, CategoryId } from '@/types'
 
 const store = useFluiserStore()
+const router = useRouter()
 const t = useT()
 const catLabel = useCatLabel()
 const { lang } = useTheme()
 const { today } = useToday()
 
 const filter = ref<CategoryId | 'all'>('all')
-const editingHabit = ref<Habit | null>(null)
-const isNew = ref(false)
 
 const filtered = computed(() =>
   store.data.habits.filter((h) => filter.value === 'all' || h.category === filter.value)
 )
 
 function openNew() {
-  editingHabit.value = {
-    id: crypto.randomUUID(), name: '', category: 'mente', icon: 'Brain', tone: 'sky',
-    time: '', freq: 'daily',
-    timer: { enabled: false, duration: 25, sessions: 1, breakDuration: 5 },
-    createdAt: today.value,
-  }
-  isNew.value = true
+  router.push('/habits/new')
 }
 
 function openEdit(h: Habit) {
-  editingHabit.value = { ...h }
-  isNew.value = false
+  router.push(`/habits/${h.id}/edit`)
 }
 
 const dowLabels = computed(() =>
@@ -177,8 +169,6 @@ const habitSummaries = computed(() =>
         {{ t('Ningún hábito en esta categoría todavía.', 'No habits in this category yet.') }}
       </div>
     </TransitionGroup>
-
-    <HabitEditorModal :habit="editingHabit" :isNew="isNew" @close="editingHabit = null" />
   </div>
 </template>
 
