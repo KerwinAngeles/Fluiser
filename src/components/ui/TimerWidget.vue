@@ -2,12 +2,10 @@
 import { computed } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
-import { useAmbientSound } from '@/composables/useAmbientSound'
 import { ICON_MAP, CheckIcon, PlayIcon, PauseIcon } from '@/components/icons/AppIcons'
 
-const store  = useFluiserStore()
-const t      = useT()
-const ambient = useAmbientSound()
+const store = useFluiserStore()
+const t     = useT()
 
 const ts             = computed(() => store.timerState)
 const habit          = computed(() => store.activeTimer)
@@ -49,9 +47,6 @@ const miniDashOffset = computed(() => MINI_CIRC * (1 - ringProgress.value))
 const FC_R    = 14
 const FC_CIRC = 2 * Math.PI * FC_R
 const fcDash  = computed(() => FC_CIRC * (remaining.value / 12))
-
-const activeSound = computed(() => ambient.current.value)
-const soundMeta   = computed(() => ambient.sounds.find(s => s.id === activeSound.value))
 
 function expand() { store.expandTimer() }
 function togglePause() {
@@ -113,11 +108,6 @@ function togglePause() {
           />
         </svg>
         <span class="tw-time tnum">{{ mm }}:{{ ss }}</span>
-      </div>
-
-      <!-- Sound indicator (shown when ambient is playing) -->
-      <div v-if="activeSound" class="tw-sound" :title="t('Sonido activo', 'Sound active')">
-        {{ soundMeta?.emoji }}
       </div>
 
       <!-- Controls -->
@@ -231,11 +221,6 @@ function togglePause() {
 .tw-done-label { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 
 .tw-flow { gap: 6px; }
-
-.tw-sound {
-  font-size: 15px; flex-shrink: 0;
-  opacity: 0.7; line-height: 1;
-}
 
 .tw-controls {
   display: flex; align-items: center; gap: 4px; flex-shrink: 0;

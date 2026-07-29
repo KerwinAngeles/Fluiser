@@ -9,7 +9,7 @@ import { useToday } from '@/composables/useToday'
 import { MONTHS_ES, MONTHS_EN } from '@/composables/useDateUtils'
 import {
   HomeIcon, HabitsIcon, HeatmapIcon,
-  GoalsIcon, FocusIcon, SettingsIcon, SunIcon, MoonIcon,
+  GoalsIcon, FocusIcon, TimelineIcon, SettingsIcon, SunIcon, MoonIcon,
 } from '@/components/icons/AppIcons'
 
 const router = useRouter()
@@ -42,6 +42,7 @@ const navItems = computed(() => [
   { id: 'habits',    label: t('Hábitos', 'Habits'),           icon: HabitsIcon },
   { id: 'heatmap',   label: t('Consistencia', 'Consistency'), icon: HeatmapIcon },
   { id: 'goals',     label: t('Metas', 'Goals'),              icon: GoalsIcon  },
+  { id: 'flow',      label: t('Flujo', 'Flow'),               icon: TimelineIcon },
 ])
 
 function isActive(id: string) {

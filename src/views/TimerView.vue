@@ -2,7 +2,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useFluiserStore, ymd } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
-import { useAmbientSound } from '@/composables/useAmbientSound'
 import { useSessionHistory } from '@/composables/useSessionHistory'
 import { ICON_MAP, CheckIcon, XIcon, ChevronDownIcon, SkipFwdIcon } from '@/components/icons/AppIcons'
 import EnergyPicker from '@/components/ui/EnergyPicker.vue'
@@ -11,8 +10,6 @@ import type { Energy } from '@/types'
 
 const store = useFluiserStore()
 const t = useT()
-const ambient = useAmbientSound()
-
 const habit = computed(() => store.activeTimer!)
 const ts    = computed(() => store.timerState!)
 
@@ -90,12 +87,10 @@ function completeHabit() {
   }).catch(console.error)
   store.toggleHabit(habitId, ymd(), { energy: energy.value, note: note.value })
   store.stopTimer()
-  ambient.stop()
 }
 
 function cancelTimer() {
   store.stopTimer()
-  ambient.stop()
 }
 
 function onKey(e: KeyboardEvent) {
@@ -268,38 +263,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
         <button class="timer-ctrl-btn" @click="store.finishTimerNow()">
           <CheckIcon :size="12" /> {{ t('Terminar', 'Finish') }}
         </button>
-      </div>
-
-      <!-- ── Ambient Sounds ── -->
-      <div class="ambient-section">
-        <div class="ambient-label">{{ t('Ambiente', 'Ambience') }}</div>
-        <div class="ambient-sounds-row">
-          <button
-            v-for="s in ambient.sounds" :key="s.id"
-            class="ambient-btn"
-            :class="{ 'ambient-btn--active': ambient.current.value === s.id }"
-            :style="ambient.current.value === s.id
-              ? { background: phaseSoft, borderColor: phaseColor, color: phaseColor }
-              : {}"
-            @click="ambient.toggle(s.id)"
-            :title="t(s.es, s.en)"
-          >
-            <span class="ambient-emoji">{{ s.emoji }}</span>
-            <span class="ambient-name">{{ t(s.es, s.en) }}</span>
-          </button>
-        </div>
-
-        <!-- Volume slider — appears when a sound is active -->
-        <Transition name="fade">
-          <div v-if="ambient.current.value" class="ambient-volume-row">
-            <span style="font-size:11px;color:var(--text-3)">🔉</span>
-            <input type="range" class="ambient-volume-slider" min="0.05" max="1" step="0.05"
-              :value="ambient.volume.value"
-              @input="ambient.setVolume(Number(($event.target as HTMLInputElement).value))"
-            />
-            <span style="font-size:11px;color:var(--text-3)">🔊</span>
-          </div>
-        </Transition>
       </div>
 
       <!-- Cancel link -->
@@ -479,42 +442,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
   min-width: 120px; justify-content: center;
 }
 .timer-ctrl-primary:hover { border-color: transparent; filter: brightness(0.92); }
-
-/* ── Ambient Sounds ── */
-.ambient-section {
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 20px;
-  margin-top: 4px;
-}
-.ambient-label {
-  font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.12em;
-  font-weight: 600; color: var(--text-3); margin-bottom: 12px;
-}
-.ambient-sounds-row {
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  flex-wrap: wrap;
-}
-.ambient-btn {
-  display: inline-flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 8px 10px; border-radius: 10px; min-width: 54px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  color: var(--text-2);
-  cursor: pointer; transition: all 200ms;
-}
-.ambient-btn:hover { border-color: var(--border-strong); color: var(--text-1); }
-.ambient-btn--active { font-weight: 500; }
-.ambient-emoji { font-size: 18px; line-height: 1; }
-.ambient-name { font-size: 10px; }
-
-.ambient-volume-row {
-  display: flex; align-items: center; gap: 8px;
-  margin-top: 12px; justify-content: center;
-}
-.ambient-volume-slider {
-  width: 120px; height: 3px; accent-color: var(--accent);
-  cursor: pointer;
-}
 
 .cancel-link {
   margin-top: 24px; background: transparent; border: none;

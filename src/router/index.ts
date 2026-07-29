@@ -11,6 +11,7 @@ const router = createRouter({
     { path: '/habits', name: 'habits', component: () => import('@/views/HabitsView.vue'), meta: { requiresAuth: true } },
     { path: '/heatmap', name: 'heatmap', component: () => import('@/views/HeatmapView.vue'), meta: { requiresAuth: true } },
     { path: '/goals', name: 'goals', component: () => import('@/views/GoalsView.vue'), meta: { requiresAuth: true } },
+    { path: '/flow', name: 'flow', component: () => import('@/views/FlowJournalView.vue'), meta: { requiresAuth: true } },
     { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { requiresAuth: true } },
   ],
 })

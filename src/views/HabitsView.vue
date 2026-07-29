@@ -7,7 +7,6 @@ import { useToday } from '@/composables/useToday'
 import { CATEGORIES } from '@/types'
 import { ICON_MAP, PlusIcon, FlameIcon } from '@/components/icons/AppIcons'
 import HabitEditorModal from '@/components/modals/HabitEditorModal.vue'
-import SessionHistoryModal from '@/components/modals/SessionHistoryModal.vue'
 import type { Habit, CategoryId } from '@/types'
 
 const store = useFluiserStore()
@@ -19,7 +18,6 @@ const { today } = useToday()
 const filter = ref<CategoryId | 'all'>('all')
 const editingHabit = ref<Habit | null>(null)
 const isNew = ref(false)
-const historyHabit = ref<Habit | null>(null)
 
 const filtered = computed(() =>
   store.data.habits.filter((h) => filter.value === 'all' || h.category === filter.value)
@@ -126,15 +124,7 @@ const habitSummaries = computed(() =>
               <template v-if="s.habit.timer?.enabled"> · {{ s.habit.timer.sessions }}×{{ s.habit.timer.duration }}min</template>
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-            <div v-if="s.doneToday" class="hc-done-chip">✓ {{ t('Hecho', 'Done') }}</div>
-            <button
-              v-if="s.habit.timer?.enabled"
-              class="hc-history-btn"
-              @click.stop="historyHabit = s.habit"
-              :title="t('Ver sesiones', 'View sessions')"
-            >⏱</button>
-          </div>
+          <div v-if="s.doneToday" class="hc-done-chip">✓ {{ t('Hecho', 'Done') }}</div>
         </div>
 
         <!-- Stats strip -->
@@ -189,7 +179,6 @@ const habitSummaries = computed(() =>
     </TransitionGroup>
 
     <HabitEditorModal :habit="editingHabit" :isNew="isNew" @close="editingHabit = null" />
-    <SessionHistoryModal v-if="historyHabit" :habit="historyHabit" @close="historyHabit = null" />
   </div>
 </template>
 
@@ -245,14 +234,6 @@ const habitSummaries = computed(() =>
   flex-shrink: 0;
   white-space: nowrap;
 }
-.hc-history-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 8px; border-radius: 999px;
-  background: var(--bg-elevated); border: 1px solid var(--border-subtle);
-  color: var(--text-3); font-size: 11px; cursor: pointer;
-  transition: all 180ms; white-space: nowrap;
-}
-.hc-history-btn:hover { border-color: var(--border-default); color: var(--text-2); }
 
 /* ── Stats strip ── */
 .hc-stats {
