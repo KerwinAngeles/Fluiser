@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
-import { ICON_MAP, CheckIcon, PlayIcon, PauseIcon } from '@/components/icons/AppIcons'
+import { useTimerPip } from '@/composables/useTimerPip'
+import { ICON_MAP, CheckIcon, PlayIcon, PauseIcon, PipIcon } from '@/components/icons/AppIcons'
 
 const store = useFluiserStore()
 const t     = useT()
+const pip   = useTimerPip()
 
 const ts             = computed(() => store.timerState)
 const habit          = computed(() => store.activeTimer)
@@ -53,11 +55,99 @@ function togglePause() {
   if (paused.value) store.resumeTimer()
   else store.pauseTimer()
 }
+
+// ── Free-drag positioning ──
+const POS_KEY = 'fluiser.timerWidgetPos'
+const widgetEl = ref<HTMLElement | null>(null)
+const dragging = ref(false)
+
+function loadPos(): { x: number; y: number } | null {
+  try {
+    const raw = localStorage.getItem(POS_KEY)
+    if (!raw) return null
+    const p = JSON.parse(raw)
+    if (typeof p?.x === 'number' && typeof p?.y === 'number') return p
+  } catch { /* ignore */ }
+  return null
+}
+const pos = ref<{ x: number; y: number } | null>(loadPos())
+
+function savePos() {
+  if (!pos.value) return
+  try { localStorage.setItem(POS_KEY, JSON.stringify(pos.value)) } catch { /* ignore */ }
+}
+function clampPos(x: number, y: number) {
+  const el = widgetEl.value
+  const w = el?.offsetWidth ?? 260
+  const h = el?.offsetHeight ?? 56
+  const maxX = Math.max(8, window.innerWidth - w - 8)
+  const maxY = Math.max(8, window.innerHeight - h - 8)
+  return { x: Math.min(Math.max(8, x), maxX), y: Math.min(Math.max(8, y), maxY) }
+}
+
+let startX = 0, startY = 0, startLeft = 0, startTop = 0
+let moved = false
+
+function onPointerDown(e: PointerEvent) {
+  if (e.button !== 0) return
+  if ((e.target as HTMLElement).closest('.tw-btn')) return
+  const el = widgetEl.value
+  if (!el) return
+  dragging.value = true
+  moved = false
+  const rect = el.getBoundingClientRect()
+  startLeft = rect.left
+  startTop = rect.top
+  startX = e.clientX
+  startY = e.clientY
+  el.setPointerCapture(e.pointerId)
+}
+function onPointerMove(e: PointerEvent) {
+  if (!dragging.value) return
+  const dx = e.clientX - startX
+  const dy = e.clientY - startY
+  if (!moved && Math.hypot(dx, dy) > 4) moved = true
+  if (!moved) return
+  pos.value = clampPos(startLeft + dx, startTop + dy)
+}
+function onPointerUp(e: PointerEvent) {
+  if (!dragging.value) return
+  dragging.value = false
+  widgetEl.value?.releasePointerCapture(e.pointerId)
+  if (moved) savePos()
+}
+function onCaptureClick(e: MouseEvent) {
+  if (moved) {
+    e.stopPropagation()
+    e.preventDefault()
+    moved = false
+  }
+}
+function onResize() {
+  if (pos.value) pos.value = clampPos(pos.value.x, pos.value.y)
+}
+onMounted(() => window.addEventListener('resize', onResize))
+onBeforeUnmount(() => window.removeEventListener('resize', onResize))
+
+const widgetStyle = computed(() =>
+  pos.value ? { left: pos.value.x + 'px', top: pos.value.y + 'px', right: 'auto', bottom: 'auto' } : {}
+)
 </script>
 
 <template>
   <Transition name="widget-slide">
-    <div v-if="ts && store.timerMinimized" class="timer-widget">
+    <div
+      v-if="ts && store.timerMinimized"
+      ref="widgetEl"
+      class="timer-widget"
+      :class="{ 'is-dragging': dragging }"
+      :style="widgetStyle"
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerUp"
+      @click.capture="onCaptureClick"
+    >
 
       <!-- Identity -->
       <div class="tw-identity" @click="expand" :title="t('Expandir timer', 'Expand timer')">
@@ -132,6 +222,17 @@ function togglePause() {
           </button>
         </template>
 
+        <!-- Pop out into a floating always-on-top window -->
+        <button
+          v-if="pip.supported"
+          class="tw-btn"
+          :class="{ 'tw-btn-active': pip.active }"
+          @click.stop="pip.toggle"
+          :title="t('Flotar sobre otras apps', 'Float over other apps')"
+        >
+          <PipIcon :size="13" />
+        </button>
+
         <!-- Expand button always visible -->
         <button class="tw-btn tw-btn-expand" @click.stop="expand" :title="t('Expandir', 'Expand')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
@@ -164,6 +265,12 @@ function togglePause() {
   min-width: 260px;
   max-width: 360px;
   user-select: none;
+  touch-action: none;
+  cursor: grab;
+}
+.timer-widget.is-dragging {
+  cursor: grabbing;
+  transition: none;
 }
 
 .tw-identity {
@@ -240,6 +347,10 @@ function togglePause() {
   background: transparent; border-color: transparent; color: var(--text-3);
 }
 .tw-btn-expand:hover { background: var(--bg-surface); border-color: var(--border-default); color: var(--text-2); }
+.tw-btn-active {
+  background: var(--accent-soft); color: var(--accent); border-color: var(--accent-glow);
+}
+.tw-btn-active:hover { color: var(--accent); border-color: var(--accent-glow); }
 
 /* Entry/exit */
 .widget-slide-enter-active {

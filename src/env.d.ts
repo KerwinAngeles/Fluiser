@@ -7,3 +7,19 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+interface DocumentPictureInPictureOptions {
+  width?: number
+  height?: number
+  disallowReturnToOpener?: boolean
+  preferInitialWindowPlacement?: boolean
+}
+
+interface DocumentPictureInPicture extends EventTarget {
+  requestPictureInPicture(options?: DocumentPictureInPictureOptions): Promise<Window>
+  readonly window: Window | null
+}
+
+interface Window {
+  documentPictureInPicture?: DocumentPictureInPicture
+}

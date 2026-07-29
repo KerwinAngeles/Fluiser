@@ -176,6 +176,11 @@ export const GoalsIcon = mkIcon(() => [
   h('circle', { cx: '12', cy: '12', r: '1.8', fill: 'currentColor', stroke: 'none' }),
 ])
 
+export const PipIcon = mkIcon(() => [
+  h('rect', { x: '3', y: '5', width: '18', height: '14', rx: '2' }),
+  h('rect', { x: '12.5', y: '11', width: '7', height: '5', rx: '1', fill: 'currentColor', stroke: 'none' }),
+])
+
 export const ICON_MAP: Record<string, ReturnType<typeof mkIcon>> = {
   Home: HomeIcon, Timeline: TimelineIcon, Habits: HabitsIcon, Heatmap: HeatmapIcon,
   Journal: JournalIcon, Analytics: AnalyticsIcon, Focus: FocusIcon,
