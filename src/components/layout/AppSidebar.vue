@@ -54,7 +54,12 @@ function isActive(id: string) {
   <header class="navbar">
     <!-- Brand -->
     <div class="brand">
-      <div class="brand-mark" />
+      <div class="brand-mark-wrap">
+        <div class="brand-mark-glow" />
+        <div class="brand-mark">
+          <span class="brand-symbol">✦</span>
+        </div>
+      </div>
       <div class="brand-name">Fluiser</div>
       <div class="brand-date tnum">{{ dateLabel }}</div>
     </div>

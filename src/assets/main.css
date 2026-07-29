@@ -219,17 +219,54 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
   flex-shrink: 0;
   border-right: 1px solid var(--border-subtle);
 }
-.brand-mark {
-  width: 24px; height: 24px; border-radius: 7px;
-  background: linear-gradient(140deg, var(--accent) 0%, var(--lilac) 100%);
-  position: relative; overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset, 0 4px 12px var(--accent-glow);
+.brand-mark-wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
 }
-.brand-mark::after {
-  content: ""; position: absolute; inset: 5px;
-  border-radius: 999px;
-  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.6), transparent 60%);
+.brand-mark-glow {
+  position: absolute;
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  filter: blur(8px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.brand-mark {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.08),
+    0 4px 14px rgba(0,0,0,0.28),
+    0 0 0 1px rgba(255,255,255,0.03);
+  display: grid; place-items: center;
+  position: relative;
+  backdrop-filter: blur(10px);
+  transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), border-color 0.3s;
+}
+.brand-mark::before {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  background: var(--accent-glow);
+  filter: blur(6px);
+  border-radius: 50%;
+  opacity: 0.85;
+}
+.brand:hover .brand-mark {
+  transform: scale(1.08);
+  border-color: rgba(255,255,255,0.18);
+}
+.brand-symbol {
+  font-size: 12px;
+  line-height: 1;
+  position: relative;
+  z-index: 1;
+  color: rgba(255,255,255,0.95);
+  text-shadow: 0 0 6px var(--accent);
 }
 .brand-name { font-family: var(--font-display); font-weight: 600; font-size: 15px; letter-spacing: -0.02em; }
 .brand-date { font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
