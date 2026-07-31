@@ -172,7 +172,8 @@ function saveAmbienceEnabled(v: boolean) {
 }
 
 export function useTimerPip() {
-  const supported = typeof window !== 'undefined' && 'documentPictureInPicture' in window
+  const supported = typeof window !== 'undefined'
+    && typeof window.documentPictureInPicture?.requestPictureInPicture === 'function'
   const active = ref(false)
   const ambienceEnabled = ref(loadAmbienceEnabled())
   const store = useFluiserStore()
@@ -198,8 +199,12 @@ export function useTimerPip() {
   }
 
   async function open() {
-    if (!supported || active.value || !window.documentPictureInPicture) return
-    win = await window.documentPictureInPicture.requestPictureInPicture({ width: PIP_WIDTH, height: PIP_HEIGHT })
+    if (!supported || active.value) return
+    try {
+      win = await window.documentPictureInPicture!.requestPictureInPicture({ width: PIP_WIDTH, height: PIP_HEIGHT })
+    } catch {
+      return // no transient user activation, or the browser refused — fall back to the manual button
+    }
     copyStylesInto(win.document)
     els = buildContent(win.document, togglePause)
     active.value = true
@@ -282,7 +287,7 @@ export function useTimerPip() {
   watch(() => [store.timerState?.phase, store.timerState?.paused, store.activeTimer?.id], syncAmbience, { immediate: true })
 
   if ('mediaSession' in navigator) {
-    try { navigator.mediaSession.setActionHandler('enterpictureinpicture', () => { open() }) } catch { /* unsupported */ }
+    try { navigator.mediaSession.setActionHandler('enterpictureinpicture', () => { open().catch(() => {}) }) } catch { /* unsupported */ }
     try { navigator.mediaSession.setActionHandler('play', () => store.resumeTimer()) } catch { /* unsupported */ }
     try { navigator.mediaSession.setActionHandler('pause', () => store.pauseTimer()) } catch { /* unsupported */ }
   }
