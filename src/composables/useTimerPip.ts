@@ -1,95 +1,15 @@
-import { ref, watch, watchEffect, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 
-const PIP_WIDTH = 260
-const PIP_HEIGHT = 150
+const PIP_WIDTH = 320
+const PIP_HEIGHT = 180
 const AMBIENCE_KEY = 'fluiser.ambienceEnabled'
 const AMBIENCE_VOLUME = 0.16
 
-interface PipEls {
-  dot: HTMLElement
-  name: HTMLElement
-  phase: HTMLElement
-  time: HTMLElement
-  playBtn: HTMLButtonElement
-  playIcon: HTMLElement
-}
-
-function copyStylesInto(doc: Document) {
-  Array.from(document.styleSheets).forEach((sheet) => {
-    try {
-      const css = Array.from(sheet.cssRules).map((r) => r.cssText).join('\n')
-      const style = doc.createElement('style')
-      style.textContent = css
-      doc.head.appendChild(style)
-    } catch {
-      if (sheet.href) {
-        const link = doc.createElement('link')
-        link.rel = 'stylesheet'
-        link.href = sheet.href
-        doc.head.appendChild(link)
-      }
-    }
-  })
-  const root = document.documentElement
-  doc.documentElement.setAttribute('data-theme', root.getAttribute('data-theme') ?? 'dark')
-  const heatmap = root.getAttribute('data-heatmap')
-  if (heatmap) doc.documentElement.setAttribute('data-heatmap', heatmap)
-  doc.documentElement.style.cssText = root.style.cssText
-  doc.body.style.margin = '0'
-  doc.body.style.background = 'var(--bg-base)'
-  doc.body.style.overflow = 'hidden'
-}
-
-function buildContent(doc: Document, onToggle: () => void): PipEls {
-  const style = doc.createElement('style')
-  style.textContent = `
-    .pip-wrap { display:flex; flex-direction:column; gap:8px; padding:16px; height:100%; box-sizing:border-box;
-      font-family: var(--font-text, system-ui, sans-serif); }
-    .pip-head { display:flex; align-items:center; gap:8px; }
-    .pip-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-    .pip-name { font-size:13px; font-weight:600; color: var(--text-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .pip-phase { font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color: var(--text-3); }
-    .pip-time { font-size:36px; font-weight:600; letter-spacing:-0.03em; font-variant-numeric: tabular-nums; }
-    .pip-controls { margin-top:auto; }
-    .pip-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:8px;
-      border:1px solid var(--border-default); background: var(--bg-elevated); color: var(--text-1);
-      font-size:13px; font-weight:500; cursor:pointer; font-family:inherit; }
-    .pip-btn:hover { background: var(--bg-glass-hi); }
-  `
-  doc.head.appendChild(style)
-
-  const wrap = doc.createElement('div')
-  wrap.className = 'pip-wrap'
-
-  const head = doc.createElement('div')
-  head.className = 'pip-head'
-  const dot = doc.createElement('span')
-  dot.className = 'pip-dot'
-  const name = doc.createElement('span')
-  name.className = 'pip-name'
-  head.append(dot, name)
-
-  const phase = doc.createElement('div')
-  phase.className = 'pip-phase'
-
-  const time = doc.createElement('div')
-  time.className = 'pip-time'
-
-  const controls = doc.createElement('div')
-  controls.className = 'pip-controls'
-  const playBtn = doc.createElement('button')
-  playBtn.className = 'pip-btn'
-  const playIcon = doc.createElement('span')
-  playBtn.appendChild(playIcon)
-  playBtn.addEventListener('click', onToggle)
-  controls.appendChild(playBtn)
-
-  wrap.append(head, phase, time, controls)
-  doc.body.appendChild(wrap)
-
-  return { dot, name, phase, time, playBtn, playIcon }
+function cssVar(name: string, fallback: string): string {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v || fallback
 }
 
 // ── Ambient loop (brown noise) ──
@@ -97,8 +17,8 @@ function buildContent(doc: Document, onToggle: () => void): PipEls {
 // when the user switches tabs, with no click required) to pages that have an
 // actually-audible <audio>/<video> element playing. A silent timer doesn't
 // qualify, so we loop a very low-volume ambient noise track while a session
-// is running — this doubles as a soft focus sound and unlocks the Chrome
-// auto-PiP behavior via the Media Session API below.
+// is running — this doubles as a soft focus sound and helps unlock the
+// Chrome auto-PiP behavior via the Media Session API below.
 function encodeWav(buffer: AudioBuffer): Blob {
   const numChannels = buffer.numberOfChannels
   const sampleRate = buffer.sampleRate
@@ -172,64 +92,128 @@ function saveAmbienceEnabled(v: boolean) {
 }
 
 export function useTimerPip() {
-  const supported = typeof window !== 'undefined'
-    && typeof window.documentPictureInPicture?.requestPictureInPicture === 'function'
+  // Classic <video> Picture-in-Picture instead of the newer Document PiP API:
+  // it's supported far more broadly (Chrome, Edge and Safari, going back
+  // years) than window.documentPictureInPicture, which is still Chrome/Edge
+  // 116+ only and inconsistent in the wild. We draw the timer onto a canvas,
+  // turn it into a live video via captureStream(), and PiP that video.
+  const supported = typeof document !== 'undefined'
+    && document.pictureInPictureEnabled === true
+    && typeof HTMLVideoElement !== 'undefined'
+    && 'requestPictureInPicture' in HTMLVideoElement.prototype
+
   const active = ref(false)
   const ambienceEnabled = ref(loadAmbienceEnabled())
   const store = useFluiserStore()
   const t = useT()
 
-  let win: Window | null = null
-  let els: PipEls | null = null
-  let stopWatch: (() => void) | null = null
+  let canvas: HTMLCanvasElement | null = null
+  let ctx2d: CanvasRenderingContext2D | null = null
+  let video: HTMLVideoElement | null = null
+  let drawInterval: ReturnType<typeof setInterval> | null = null
 
-  function togglePause() {
+  function ensureCanvas() {
+    if (canvas) return
+    canvas = document.createElement('canvas')
+    canvas.width = PIP_WIDTH
+    canvas.height = PIP_HEIGHT
+    ctx2d = canvas.getContext('2d')
+  }
+
+  function draw() {
+    if (!ctx2d || !canvas) return
+    const W = canvas.width
+    const H = canvas.height
+    ctx2d.clearRect(0, 0, W, H)
+    ctx2d.fillStyle = cssVar('--bg-base', '#0b0c0f')
+    ctx2d.fillRect(0, 0, W, H)
+
     const ts = store.timerState
-    if (!ts) return
-    if (ts.paused) store.resumeTimer()
-    else store.pauseTimer()
+    const habit = store.activeTimer
+    if (!ts || !habit) return
+
+    const isBreak = ts.phase === 'break'
+    const color = isBreak ? cssVar('--mint', '#5eead4') : cssVar(`--${habit.tone}`, '#5b9bf5')
+
+    ctx2d.textBaseline = 'top'
+    ctx2d.fillStyle = cssVar('--text-1', '#f5f5f7')
+    ctx2d.font = '600 16px system-ui, sans-serif'
+    ctx2d.fillText(habit.name, 148, 20, W - 168)
+
+    const phaseLabel = ts.phase === 'review'
+      ? t('Listo', 'Done')
+      : isBreak ? t('Pausa', 'Break') : t('Enfoque', 'Focus')
+    ctx2d.fillStyle = color
+    ctx2d.font = '600 12px system-ui, sans-serif'
+    ctx2d.fillText(phaseLabel.toUpperCase(), 148, 44)
+
+    // Ring
+    const cx = 70
+    const cy = H / 2
+    const r = 50
+    const total = isBreak ? ts.breakSec : ts.workSec
+    const remaining = ts.remaining ?? 0
+    const progress = total ? 1 - remaining / total : 1
+    ctx2d.strokeStyle = cssVar('--border-subtle', '#2a2d33')
+    ctx2d.lineWidth = 7
+    ctx2d.beginPath()
+    ctx2d.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx2d.stroke()
+    ctx2d.strokeStyle = color
+    ctx2d.lineCap = 'round'
+    ctx2d.beginPath()
+    ctx2d.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, Math.min(1, progress)))
+    ctx2d.stroke()
+
+    const mm = String(Math.floor(remaining / 60)).padStart(2, '0')
+    const ss = String(remaining % 60).padStart(2, '0')
+    ctx2d.fillStyle = cssVar('--text-1', '#f5f5f7')
+    ctx2d.font = '600 15px system-ui, sans-serif'
+    ctx2d.textAlign = 'center'
+    ctx2d.textBaseline = 'middle'
+    ctx2d.fillText(`${mm}:${ss}`, cx, cy)
+    ctx2d.textAlign = 'left'
+    ctx2d.textBaseline = 'alphabetic'
+
+    ctx2d.fillStyle = ts.paused ? cssVar('--text-3', '#8a8f98') : color
+    ctx2d.font = '500 13px system-ui, sans-serif'
+    ctx2d.textBaseline = 'top'
+    ctx2d.fillText(ts.paused ? t('Pausado', 'Paused') : t('En marcha', 'Running'), 148, H - 40)
+  }
+
+  function ensureVideo(): HTMLVideoElement {
+    if (video) return video
+    ensureCanvas()
+    draw()
+    const stream = canvas!.captureStream(2)
+    const v = document.createElement('video')
+    v.muted = true
+    v.playsInline = true
+    v.srcObject = stream
+    video = v
+    return v
   }
 
   function close() {
-    if (stopWatch) { stopWatch(); stopWatch = null }
-    if (win && !win.closed) win.close()
-    win = null
-    els = null
+    if (drawInterval) { clearInterval(drawInterval); drawInterval = null }
+    if (document.pictureInPictureElement) {
+      document.exitPictureInPicture().catch(() => { /* already closed */ })
+    }
     active.value = false
   }
 
   async function open() {
     if (!supported || active.value) return
     try {
-      win = await window.documentPictureInPicture!.requestPictureInPicture({ width: PIP_WIDTH, height: PIP_HEIGHT })
+      const v = ensureVideo()
+      await v.play()
+      await v.requestPictureInPicture()
     } catch {
-      return // no transient user activation, or the browser refused — fall back to the manual button
+      return // no transient activation, or the browser refused — fall back to the manual button
     }
-    copyStylesInto(win.document)
-    els = buildContent(win.document, togglePause)
     active.value = true
-
-    win.addEventListener('pagehide', () => close())
-
-    stopWatch = watchEffect(() => {
-      if (!els) return
-      const ts = store.timerState
-      const habit = store.activeTimer
-      if (!ts || !habit) return
-      const isBreak = ts.phase === 'break'
-      const color = isBreak ? 'var(--mint)' : `var(--${habit.tone})`
-      els.dot.style.background = color
-      els.name.textContent = habit.name
-      els.phase.textContent = ts.phase === 'review'
-        ? t('Listo', 'Done')
-        : isBreak ? t('Pausa', 'Break') : t('Enfoque', 'Focus')
-      const remaining = ts.remaining ?? 0
-      const mm = String(Math.floor(remaining / 60)).padStart(2, '0')
-      const ss = String(remaining % 60).padStart(2, '0')
-      els.time.textContent = `${mm}:${ss}`
-      els.time.style.color = color
-      els.playIcon.textContent = ts.paused ? t('▶ Reanudar', '▶ Resume') : t('⏸ Pausar', '⏸ Pause')
-    })
+    if (!drawInterval) drawInterval = setInterval(draw, 500)
+    video!.addEventListener('leavepictureinpicture', () => close(), { once: true })
   }
 
   async function toggle() {
@@ -241,9 +225,9 @@ export function useTimerPip() {
   // below) only fires for pages it already trusts with a high Media
   // Engagement Index — brand-new/low-traffic origins usually don't qualify,
   // even with audible media playing. As a more reliable fallback, try to pop
-  // the window ourselves the moment the tab is hidden: Document PiP only
-  // needs a *recent* user gesture (transient activation lasts a few seconds
-  // in Chromium), and switching tabs almost always follows some click/tap on
+  // the window ourselves the moment the tab is hidden: PiP only needs a
+  // *recent* user gesture (transient activation lasts a few seconds in
+  // Chromium), and switching tabs almost always follows some click/tap on
   // the page (pause, drag, expand…), so this succeeds far more often in
   // practice than waiting on the browser's own heuristic.
   function onVisibilityChange() {
