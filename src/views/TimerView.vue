@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useFluiserStore, ymd } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 import { useSessionHistory } from '@/composables/useSessionHistory'
-import { ICON_MAP, CheckIcon, XIcon, ChevronDownIcon, SkipFwdIcon } from '@/components/icons/AppIcons'
+import { ICON_MAP, CheckIcon, XIcon, ChevronDownIcon, SkipFwdIcon, PlayIcon } from '@/components/icons/AppIcons'
 import EnergyPicker from '@/components/ui/EnergyPicker.vue'
 import SessionJourney from '@/components/ui/SessionJourney.vue'
 import type { Energy } from '@/types'
@@ -49,6 +49,18 @@ const phaseLabel = computed(() => {
   if (phase.value === 'flow-check') return t('¿Sigues en flujo?', 'Still in flow?')
   return t('Completado', 'Complete')
 })
+
+// ─ Gate: session/break just ended, waiting on the user to start the next one ─
+const isGate = computed(() => phase.value === 'gate')
+const gateIsBreak = computed(() => ts.value?.pendingPhase === 'break')
+const gateTitle = computed(() =>
+  gateIsBreak.value ? t('Sesión terminada', 'Session done') : t('Pausa terminada', 'Break done'),
+)
+const gateButtonLabel = computed(() =>
+  gateIsBreak.value
+    ? t('Comenzar pausa', 'Start break')
+    : t(`Comenzar sesión ${currentSession.value + 1}`, `Start session ${currentSession.value + 1}`),
+)
 
 // Ring
 const R    = 148
@@ -203,6 +215,30 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
       </div>
     </div>
 
+    <!-- ─────────── GATE: waiting for the user to start the next phase ─────────── -->
+    <div v-else-if="isGate"
+      class="timer-panel"
+      style="max-width:440px; animation:screen-in 360ms cubic-bezier(0.16,1,0.3,1)">
+
+      <div class="review-icon gate-icon" :style="{ background: phaseSoft, color: phaseColor }">
+        <CheckIcon :size="34" />
+      </div>
+
+      <div class="screen-eyebrow">{{ t('Sesión cerrada', 'Session closed') }}</div>
+      <h1 class="review-title" style="font-size:26px">{{ gateTitle }}</h1>
+      <div class="serif review-sub" style="font-size:15px; margin-bottom:28px">
+        {{ t('Cuando quieras seguir, comienza tú la siguiente parte.', 'Whenever you\'re ready, start the next part yourself.') }}
+      </div>
+
+      <button class="btn btn-primary gate-continue-btn" :style="{ background: phaseColor }" @click="store.continueGate()">
+        <PlayIcon :size="13" /> {{ gateButtonLabel }}
+      </button>
+
+      <button class="cancel-link" @click="cancelTimer">
+        <XIcon :size="11" /> {{ t('Cancelar sesión', 'Cancel session') }}
+      </button>
+    </div>
+
     <!-- ─────────── ACTIVE TIMER ─────────── -->
     <div v-else class="timer-panel" style="max-width:520px">
       <!-- Habit name + icon -->
@@ -337,6 +373,15 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
   color: var(--accent, var(--sky));
   font-style: normal; font-weight: 500;
 }
+
+/* ── Gate ── */
+.gate-icon { width: 76px; height: 76px; }
+.gate-continue-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 26px; font-size: 14.5px;
+  color: #0A0B0D; border-color: transparent;
+}
+.gate-continue-btn:hover { filter: brightness(0.94); }
 
 /* ── Flow-check ── */
 .flow-check-panel { max-width: 440px; }

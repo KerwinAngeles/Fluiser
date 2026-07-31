@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { supabase } from '@/lib/supabase'
 import * as db from '@/services/supabase'
@@ -16,10 +16,11 @@ interface TimerSegment {
 
 interface TimerState {
   habitId: string
-  phase: 'work' | 'break' | 'review' | 'flow-check'
+  phase: 'work' | 'break' | 'review' | 'flow-check' | 'gate'
+  pendingPhase?: 'work' | 'break' | null  // when phase === 'gate': what continueGate() will start
   currentSession: number
   remaining: number
-  endAt: number | null   // wall-clock ms when current phase ends; null when paused/review
+  endAt: number | null   // wall-clock ms when current phase ends; null when paused/review/gate
   paused: boolean
   workSec: number
   breakSec: number
@@ -94,6 +95,24 @@ export const useFluiserStore = defineStore('fluiser', () => {
     } catch {}
   }
 
+  // Rings repeatedly while the timer is waiting on the user (phase 'gate' or
+  // 'flow-check') instead of a single chime — the point is that a finished
+  // session should keep nagging until the user manually starts the next one
+  // or wraps up, not slip into the next phase on its own.
+  let _alarmInterval: ReturnType<typeof setInterval> | null = null
+  function _startAlarm() {
+    if (_alarmInterval) return
+    _playBell()
+    _alarmInterval = setInterval(_playBell, 2500)
+  }
+  function _stopAlarm() {
+    if (_alarmInterval) { clearInterval(_alarmInterval); _alarmInterval = null }
+  }
+  watch(() => timerState.value?.phase, (phase) => {
+    if (phase === 'gate' || phase === 'flow-check') _startAlarm()
+    else _stopAlarm()
+  })
+
   function _saveTimer() {
     if (timerState.value) localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(timerState.value))
     else localStorage.removeItem(TIMER_STORAGE_KEY)
@@ -101,23 +120,47 @@ export const useFluiserStore = defineStore('fluiser', () => {
 
   const FLOW_CHECK_SEC = 12
 
+  // A work/break segment just ran out. Instead of silently starting the next
+  // one, land on a 'gate' the user has to manually clear — see continueGate().
+  // The only automatic exception is the very last work session, which goes
+  // to 'flow-check' (itself a manual decision point, not an active phase).
   function _advancePhase() {
     const s = timerState.value
     if (!s) return
-    _playBell()
     const now = Date.now()
     const sc = _closeSegment(s)
     if (s.phase === 'work') {
       if (s.currentSession >= s.sessions) {
         timerState.value = { ...sc, phase: 'flow-check', remaining: FLOW_CHECK_SEC, endAt: now + FLOW_CHECK_SEC * 1000 }
-      } else if (s.breakSec > 0) {
-        timerState.value = { ...sc, phase: 'break', remaining: s.breakSec, endAt: now + s.breakSec * 1000, journey: [...sc.journey, { type: 'break' as const, startAt: now }] }
       } else {
-        timerState.value = { ...sc, currentSession: s.currentSession + 1, remaining: s.workSec, endAt: now + s.workSec * 1000, journey: [...sc.journey, { type: 'work' as const, startAt: now }] }
+        timerState.value = { ...sc, phase: 'gate', pendingPhase: s.breakSec > 0 ? 'break' : 'work', remaining: 0, endAt: null, paused: true }
       }
     } else if (s.phase === 'break') {
-      timerState.value = { ...sc, phase: 'work', currentSession: s.currentSession + 1, remaining: s.workSec, endAt: now + s.workSec * 1000, journey: [...sc.journey, { type: 'work' as const, startAt: now }] }
+      timerState.value = { ...sc, phase: 'gate', pendingPhase: 'work', remaining: 0, endAt: null, paused: true }
     }
+    _saveTimer()
+  }
+
+  // Manually clears a 'gate' — starts the break or the next work session
+  // the user just chose to begin.
+  function continueGate() {
+    const s = timerState.value
+    if (!s || s.phase !== 'gate') return
+    const now = Date.now()
+    if (s.pendingPhase === 'break') {
+      timerState.value = {
+        ...s, phase: 'break', pendingPhase: null, paused: false,
+        remaining: s.breakSec, endAt: now + s.breakSec * 1000,
+        journey: [...s.journey, { type: 'break' as const, startAt: now }],
+      }
+    } else {
+      timerState.value = {
+        ...s, phase: 'work', pendingPhase: null, paused: false,
+        currentSession: s.currentSession + 1, remaining: s.workSec, endAt: now + s.workSec * 1000,
+        journey: [...s.journey, { type: 'work' as const, startAt: now }],
+      }
+    }
+    if (!_timerInterval) _timerInterval = setInterval(_tick, 500)
     _saveTimer()
   }
 
@@ -139,24 +182,24 @@ export const useFluiserStore = defineStore('fluiser', () => {
   }
 
   function _fastForward(s: TimerState): TimerState {
-    if (s.paused || !s.endAt || s.phase === 'review') return s
+    if (s.paused || !s.endAt || s.phase === 'review' || s.phase === 'gate') return s
+    const now = Date.now()
     // If restoring in flow-check: keep if still live, else go to review
     if (s.phase === 'flow-check') {
-      if (Date.now() >= s.endAt) return { ...s, phase: 'review', remaining: 0, endAt: null }
-      return { ...s, remaining: Math.max(0, Math.ceil((s.endAt - Date.now()) / 1000)) }
+      if (now >= s.endAt) return { ...s, phase: 'review', remaining: 0, endAt: null }
+      return { ...s, remaining: Math.max(0, Math.ceil((s.endAt - now) / 1000)) }
     }
-    let phase = s.phase as TimerState['phase']
-    let { currentSession, workSec, breakSec, sessions, endAt } = s
-    const now = Date.now()
-    while (now >= endAt && phase !== 'review') {
-      if (phase === 'work') {
-        if (currentSession >= sessions) { phase = 'review'; break }
-        else if (breakSec > 0) { endAt += breakSec * 1000; phase = 'break' }
-        else { currentSession++; endAt += workSec * 1000 }
-      } else { currentSession++; phase = 'work'; endAt += workSec * 1000 }
+    if (now < s.endAt) return { ...s, remaining: Math.max(0, Math.ceil((s.endAt - now) / 1000)) }
+    // The segment ran out while the tab was away — land on the same gate
+    // the user would have hit had they been watching, instead of skipping
+    // ahead through however many cycles elapsed.
+    if (s.phase === 'work') {
+      if (s.currentSession >= s.sessions) {
+        return { ...s, phase: 'flow-check', remaining: FLOW_CHECK_SEC, endAt: now + FLOW_CHECK_SEC * 1000 }
+      }
+      return { ...s, phase: 'gate', pendingPhase: s.breakSec > 0 ? 'break' : 'work', remaining: 0, endAt: null, paused: true }
     }
-    if (phase === 'review') return { ...s, phase, currentSession, remaining: 0, endAt: null }
-    return { ...s, phase, currentSession, remaining: Math.max(0, Math.ceil((endAt - now) / 1000)), endAt }
+    return { ...s, phase: 'gate', pendingPhase: 'work', remaining: 0, endAt: null, paused: true }
   }
 
 
@@ -533,7 +576,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
 
   function resumeTimer() {
     const s = timerState.value
-    if (!s || !s.paused || s.phase === 'review') return
+    if (!s || !s.paused || s.phase === 'review' || s.phase === 'gate') return
     const now = Date.now()
     const sc = _closeSegment(s)
     const resumeType = _lastActiveSegType(sc.journey)
@@ -719,7 +762,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
     upsertHabit, setHabitActive,
     writeJournal, writeCheckin, writeSettings,
     setFocus, startTimer, stopTimer,
-    pauseTimer, resumeTimer, skipTimerSession, finishTimerNow, continueFlow,
+    pauseTimer, resumeTimer, skipTimerSession, finishTimerNow, continueFlow, continueGate,
     minimizeTimer, expandTimer,
     upsertMeta, deleteMeta,
     upsertVisionItem, deleteVisionItem,

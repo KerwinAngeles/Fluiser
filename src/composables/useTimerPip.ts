@@ -8,8 +8,6 @@ import { useT } from '@/composables/useLang'
 // Spotify's mini player and OS media overlays stay legible over anything.
 const PIP_WIDTH = 420
 const PIP_HEIGHT = 230
-const AMBIENCE_KEY = 'fluiser.ambienceEnabled'
-const AMBIENCE_VOLUME = 0.16
 const FONT = 'system-ui, -apple-system, "SF Pro Text", "Inter", sans-serif'
 
 const PALETTE = {
@@ -91,85 +89,6 @@ function drawSessionPills(ctx: CanvasRenderingContext2D, x: number, y: number, s
   }
 }
 
-// ── Ambient loop (brown noise) ──
-// Chrome only grants "automatic picture-in-picture" (popping the PiP window
-// when the user switches tabs, with no click required) to pages that have an
-// actually-audible <audio>/<video> element playing. A silent timer doesn't
-// qualify, so we loop a very low-volume ambient noise track while a session
-// is running — this doubles as a soft focus sound and helps unlock the
-// Chrome auto-PiP behavior via the Media Session API below.
-function encodeWav(buffer: AudioBuffer): Blob {
-  const numChannels = buffer.numberOfChannels
-  const sampleRate = buffer.sampleRate
-  const blockAlign = numChannels * 2
-  const dataLength = buffer.length * blockAlign
-  const arrayBuffer = new ArrayBuffer(44 + dataLength)
-  const view = new DataView(arrayBuffer)
-  const writeStr = (offset: number, str: string) => {
-    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
-  }
-  writeStr(0, 'RIFF')
-  view.setUint32(4, 36 + dataLength, true)
-  writeStr(8, 'WAVE')
-  writeStr(12, 'fmt ')
-  view.setUint32(16, 16, true)
-  view.setUint16(20, 1, true)
-  view.setUint16(22, numChannels, true)
-  view.setUint32(24, sampleRate, true)
-  view.setUint32(28, sampleRate * blockAlign, true)
-  view.setUint16(32, blockAlign, true)
-  view.setUint16(34, 16, true)
-  writeStr(36, 'data')
-  view.setUint32(40, dataLength, true)
-
-  const channels: Float32Array[] = []
-  for (let c = 0; c < numChannels; c++) channels.push(buffer.getChannelData(c))
-  let offset = 44
-  for (let i = 0; i < buffer.length; i++) {
-    for (let c = 0; c < numChannels; c++) {
-      const s = Math.max(-1, Math.min(1, channels[c][i]))
-      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true)
-      offset += 2
-    }
-  }
-  return new Blob([arrayBuffer], { type: 'audio/wav' })
-}
-
-function buildAmbienceBuffer(sampleRate: number, seconds: number): AudioBuffer {
-  const length = sampleRate * seconds
-  const ctx = new OfflineAudioContext(1, length, sampleRate)
-  const buffer = ctx.createBuffer(1, length, sampleRate)
-  const data = buffer.getChannelData(0)
-  let lastOut = 0
-  for (let i = 0; i < length; i++) {
-    const white = Math.random() * 2 - 1
-    lastOut = (lastOut + 0.02 * white) / 1.02
-    data[i] = lastOut * 3.5
-  }
-  return buffer
-}
-
-let ambienceAudio: HTMLAudioElement | null = null
-
-function ensureAmbienceAudio(): HTMLAudioElement {
-  if (ambienceAudio) return ambienceAudio
-  const buffer = buildAmbienceBuffer(44100, 6)
-  const url = URL.createObjectURL(encodeWav(buffer))
-  const el = new Audio(url)
-  el.loop = true
-  el.preload = 'auto'
-  el.volume = AMBIENCE_VOLUME
-  ambienceAudio = el
-  return el
-}
-
-function loadAmbienceEnabled(): boolean {
-  try { return localStorage.getItem(AMBIENCE_KEY) !== 'off' } catch { return true }
-}
-function saveAmbienceEnabled(v: boolean) {
-  try { localStorage.setItem(AMBIENCE_KEY, v ? 'on' : 'off') } catch { /* ignore */ }
-}
-
 export function useTimerPip() {
   // Classic <video> Picture-in-Picture instead of the newer Document PiP API:
   // it's supported far more broadly (Chrome, Edge and Safari, going back
@@ -182,7 +101,6 @@ export function useTimerPip() {
     && 'requestPictureInPicture' in HTMLVideoElement.prototype
 
   const active = ref(false)
-  const ambienceEnabled = ref(loadAmbienceEnabled())
   const store = useFluiserStore()
   const t = useT()
 
@@ -233,7 +151,9 @@ export function useTimerPip() {
     const isBreak = ts.phase === 'break'
     const isFlow = ts.phase === 'flow-check'
     const isReview = ts.phase === 'review'
-    const toneKey = isBreak ? 'mint' : habit.tone
+    const isGate = ts.phase === 'gate'
+    const gateIsBreak = ts.pendingPhase === 'break'
+    const toneKey = isBreak || (isGate && gateIsBreak) ? 'mint' : habit.tone
     const accent = TONE_ACCENT[toneKey] ?? TONE_ACCENT.sky
 
     // ── Left: ring ──
@@ -249,22 +169,24 @@ export function useTimerPip() {
 
     let progress = 1
     if (isFlow) progress = (ts.remaining ?? 0) / 12
-    else if (!isReview) {
+    else if (!isReview && !isGate) {
       const total = isBreak ? ts.breakSec : ts.workSec
       progress = total ? 1 - (ts.remaining ?? 0) / total : 1
     }
     progress = Math.max(0, Math.min(1, progress))
 
-    ctx.save()
-    ctx.shadowColor = hexToRgba(accent, 0.7)
-    ctx.shadowBlur = 10
-    ctx.strokeStyle = accent
-    ctx.lineWidth = 9
-    ctx.lineCap = 'round'
-    ctx.beginPath()
-    ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress)
-    ctx.stroke()
-    ctx.restore()
+    if (!isGate) {
+      ctx.save()
+      ctx.shadowColor = hexToRgba(accent, 0.7)
+      ctx.shadowBlur = 10
+      ctx.strokeStyle = accent
+      ctx.lineWidth = 9
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress)
+      ctx.stroke()
+      ctx.restore()
+    }
 
     if (isReview) {
       ctx.strokeStyle = accent
@@ -276,6 +198,19 @@ export function useTimerPip() {
       ctx.lineTo(cx - 6, cy + 14)
       ctx.lineTo(cx + 22, cy - 16)
       ctx.stroke()
+    } else if (isGate) {
+      // Waiting for the user — a paused glyph instead of a countdown, since
+      // nothing is actively running until they act.
+      ctx.fillStyle = accent
+      roundRect(ctx, cx - 13, cy - 16, 8, 32, 3)
+      ctx.fill()
+      roundRect(ctx, cx + 5, cy - 16, 8, 32, 3)
+      ctx.fill()
+      ctx.fillStyle = PALETTE.textTertiary
+      ctx.font = `500 11px ${FONT}`
+      ctx.textAlign = 'center'
+      ctx.fillText(t('en espera', 'waiting'), cx, cy + 34)
+      ctx.textAlign = 'left'
     } else {
       const remaining = ts.remaining ?? 0
       ctx.fillStyle = PALETTE.textPrimary
@@ -324,6 +259,7 @@ export function useTimerPip() {
     let phaseLabel = t('Enfoque', 'Focus')
     if (isReview) phaseLabel = t('Sesión completa', 'Session complete')
     else if (isFlow) phaseLabel = t('¿Sigues en flujo?', 'Still in flow?')
+    else if (isGate) phaseLabel = gateIsBreak ? t('Lista para la pausa', 'Ready for a break') : t('Lista la siguiente', 'Next one ready')
     else if (isBreak) phaseLabel = t('Pausa', 'Break')
     ctx.fillStyle = accent
     ctx.font = `700 12px ${FONT}`
@@ -337,6 +273,7 @@ export function useTimerPip() {
     let statusText = t('En marcha', 'Running')
     if (isReview) statusText = t('Guardado', 'Saved')
     else if (isFlow) statusText = t('Sesión terminada', 'Session ended')
+    else if (isGate) statusText = t('Continúa manualmente', 'Continue manually')
     else if (ts.paused) statusText = t('Pausado', 'Paused')
     ctx.fillStyle = PALETTE.textSecondary
     ctx.font = `500 13px ${FONT}`
@@ -344,7 +281,7 @@ export function useTimerPip() {
     ctx.fillText(statusText, rx + 14, statusDotY + 1)
     ctx.textBaseline = 'alphabetic'
 
-    if (!isFlow && ts.sessions > 1) {
+    if (!isFlow && !isGate && ts.sessions > 1) {
       const sessionLabel = t(`Sesión ${ts.currentSession} de ${ts.sessions}`, `Session ${ts.currentSession} of ${ts.sessions}`)
       ctx.fillStyle = PALETTE.textQuaternary
       ctx.font = `500 12px ${FONT}`
@@ -352,6 +289,12 @@ export function useTimerPip() {
       ctx.fillText(sessionLabel, rx, sessionY)
       const labelWidth = ctx.measureText(sessionLabel).width
       drawSessionPills(ctx, rx + labelWidth + 8, sessionY - 4, ts.sessions, ts.currentSession, accent)
+      ctx.textBaseline = 'alphabetic'
+    } else if (isGate) {
+      ctx.fillStyle = PALETTE.textQuaternary
+      ctx.font = `500 12px ${FONT}`
+      ctx.textBaseline = 'middle'
+      ctx.fillText(t('Toca continuar en la app', 'Tap continue in the app'), rx, sessionY)
       ctx.textBaseline = 'alphabetic'
     } else if (ts.flowExtensions > 0) {
       ctx.fillStyle = PALETTE.textQuaternary
@@ -408,15 +351,14 @@ export function useTimerPip() {
     else await open()
   }
 
-  // Chrome's "automatic" PiP-on-tab-switch (via the Media Session handler
-  // below) only fires for pages it already trusts with a high Media
-  // Engagement Index — brand-new/low-traffic origins usually don't qualify,
-  // even with audible media playing. As a more reliable fallback, try to pop
-  // the window ourselves the moment the tab is hidden: PiP only needs a
-  // *recent* user gesture (transient activation lasts a few seconds in
-  // Chromium), and switching tabs almost always follows some click/tap on
-  // the page (pause, drag, expand…), so this succeeds far more often in
-  // practice than waiting on the browser's own heuristic.
+  // Document PiP has a real "automatic" trigger (via the Media Session
+  // handler below) that pops the window with no click needed, but it only
+  // fires for origins Chrome already trusts — brand-new/low-traffic sites
+  // rarely qualify. As a more reliable fallback, try to pop the window
+  // ourselves the moment the tab is hidden: PiP only needs a *recent* user
+  // gesture (transient activation lasts a few seconds in Chromium), and
+  // switching tabs almost always follows some click/tap on the page (pause,
+  // drag, expand…), so this succeeds far more often in practice.
   function onVisibilityChange() {
     if (!document.hidden || !supported || active.value || !store.activeTimer) return
     open().catch(() => { /* no transient activation left — user didn't touch the page recently enough */ })
@@ -424,38 +366,26 @@ export function useTimerPip() {
   onMounted(() => document.addEventListener('visibilitychange', onVisibilityChange))
   onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityChange))
 
-  function toggleAmbience() {
-    ambienceEnabled.value = !ambienceEnabled.value
-    saveAmbienceEnabled(ambienceEnabled.value)
-    syncAmbience()
-  }
-
-  function syncAmbience() {
+  function syncMediaSession() {
+    if (!('mediaSession' in navigator)) return
     const ts = store.timerState
-    const running = !!ts && !ts.paused && ts.phase !== 'review'
-    if ('mediaSession' in navigator) {
-      const habit = store.activeTimer
-      if (ts && habit) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: habit.name,
-          artist: ts.phase === 'break' ? t('Pausa', 'Break') : t('Enfoque', 'Focus'),
-          album: 'Fluiser',
-        })
-      } else {
-        navigator.mediaSession.metadata = null
-      }
-      navigator.mediaSession.playbackState = running ? 'playing' : 'paused'
-    }
-    if (running && ambienceEnabled.value) {
-      ensureAmbienceAudio().play().catch(() => { /* blocked until next user gesture */ })
+    const habit = store.activeTimer
+    if (ts && habit) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: habit.name,
+        artist: ts.phase === 'break' ? t('Pausa', 'Break') : t('Enfoque', 'Focus'),
+        album: 'Fluiser',
+      })
+      navigator.mediaSession.playbackState = !ts.paused && ts.phase !== 'review' ? 'playing' : 'paused'
     } else {
-      ambienceAudio?.pause()
+      navigator.mediaSession.metadata = null
+      navigator.mediaSession.playbackState = 'none'
     }
   }
 
   watch(() => store.activeTimer, (h) => { if (!h) close() })
   watch(() => store.timerMinimized, (min) => { if (!min) close() })
-  watch(() => [store.timerState?.phase, store.timerState?.paused, store.activeTimer?.id], syncAmbience, { immediate: true })
+  watch(() => [store.timerState?.phase, store.timerState?.paused, store.activeTimer?.id], syncMediaSession, { immediate: true })
 
   if ('mediaSession' in navigator) {
     try { navigator.mediaSession.setActionHandler('enterpictureinpicture', () => { open().catch(() => {}) }) } catch { /* unsupported */ }
@@ -463,5 +393,5 @@ export function useTimerPip() {
     try { navigator.mediaSession.setActionHandler('pause', () => store.pauseTimer()) } catch { /* unsupported */ }
   }
 
-  return { supported, active, toggle, ambienceEnabled, toggleAmbience }
+  return { supported, active, toggle }
 }

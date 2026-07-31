@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 import { useTimerPip } from '@/composables/useTimerPip'
-import { ICON_MAP, CheckIcon, PlayIcon, PauseIcon, PipIcon, SpeakerIcon, SpeakerMuteIcon } from '@/components/icons/AppIcons'
+import { ICON_MAP, CheckIcon, PlayIcon, PauseIcon, PipIcon } from '@/components/icons/AppIcons'
 
 const store = useFluiserStore()
 const t     = useT()
@@ -19,6 +19,8 @@ const currentSession = computed(() => ts.value?.currentSession ?? 1)
 const workSec        = computed(() => ts.value?.workSec ?? 0)
 const breakSec       = computed(() => ts.value?.breakSec ?? 0)
 const isFlowCheck    = computed(() => phase.value === 'flow-check')
+const isGate         = computed(() => phase.value === 'gate')
+const gateIsBreak    = computed(() => ts.value?.pendingPhase === 'break')
 const totalSec       = computed(() => {
   if (isFlowCheck.value) return 12
   return phase.value === 'break' ? breakSec.value : workSec.value
@@ -32,6 +34,7 @@ const phaseSoft = computed(() =>
 )
 const phaseLabel = computed(() => {
   if (isFlowCheck.value) return t('¿Flujo?', 'Flow?')
+  if (isGate.value) return t('Listo', 'Ready')
   if (phase.value === 'review') return t('Listo', 'Done')
   if (phase.value === 'break')  return t('Pausa', 'Break')
   return t('Enfoque', 'Focus')
@@ -156,10 +159,10 @@ const widgetStyle = computed(() =>
         </div>
         <div class="tw-info">
           <span class="tw-name">{{ habit?.name }}</span>
-          <span class="tw-phase" :style="{ color: isFlowCheck ? phaseColor : undefined }"
-            :class="{ 'tw-phase--pulse': isFlowCheck }">
+          <span class="tw-phase" :style="{ color: (isFlowCheck || isGate) ? phaseColor : undefined }"
+            :class="{ 'tw-phase--pulse': isFlowCheck || isGate }">
             {{ phaseLabel }}
-            <template v-if="sessions > 1 && !isFlowCheck"> · {{ currentSession }}/{{ sessions }}</template>
+            <template v-if="sessions > 1 && !isFlowCheck && !isGate"> · {{ currentSession }}/{{ sessions }}</template>
           </span>
         </div>
       </div>
@@ -185,6 +188,14 @@ const widgetStyle = computed(() =>
           />
         </svg>
         <span class="tw-time tnum" :style="{ color: phaseColor }">{{ remaining }}s</span>
+      </div>
+
+      <!-- ─ Gate: waiting for the user to start the next phase ─ -->
+      <div v-else-if="isGate" class="tw-review" @click="expand">
+        <div class="tw-check-circle" :style="{ background: phaseSoft, color: phaseColor }">
+          <CheckIcon :size="14" />
+        </div>
+        <span class="tw-done-label" :style="{ color: phaseColor }">{{ t('Listo', 'Ready') }}</span>
       </div>
 
       <!-- ─ Active timer ─ -->
@@ -213,6 +224,15 @@ const widgetStyle = computed(() =>
           </button>
         </template>
 
+        <!-- Gate: single inline button to manually start the next phase -->
+        <template v-else-if="isGate">
+          <button class="tw-btn tw-btn-flow" :style="{ color: phaseColor, borderColor: phaseColor }"
+            @click.stop="store.continueGate()"
+            :title="gateIsBreak ? t('Comenzar pausa', 'Start break') : t('Comenzar siguiente sesión', 'Start next session')">
+            <PlayIcon :size="12" />
+          </button>
+        </template>
+
         <!-- Normal controls -->
         <template v-else-if="phase !== 'review'">
           <button class="tw-btn" @click.stop="togglePause"
@@ -221,17 +241,6 @@ const widgetStyle = computed(() =>
             <PlayIcon  v-else         :size="13" />
           </button>
         </template>
-
-        <!-- Ambient focus sound (also unlocks Chrome's auto-float-on-tab-switch) -->
-        <button
-          class="tw-btn"
-          :class="{ 'tw-btn-active': pip.ambienceEnabled }"
-          @click.stop="pip.toggleAmbience"
-          :title="t('Sonido ambiente', 'Ambient sound')"
-        >
-          <SpeakerIcon v-if="pip.ambienceEnabled" :size="13" />
-          <SpeakerMuteIcon v-else :size="13" />
-        </button>
 
         <!-- Pop out into a floating always-on-top window -->
         <button
