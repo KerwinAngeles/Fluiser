@@ -2,26 +2,58 @@ import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 
-const PIP_WIDTH = 360
-const PIP_HEIGHT = 200
+// Canvas size mirrors the "1a" design option from the Claude Design mockup
+// (dark HUD card, 420x230) — the floating window intentionally keeps its own
+// fixed dark look regardless of the app's light/dark theme, the same way
+// Spotify's mini player and OS media overlays stay legible over anything.
+const PIP_WIDTH = 420
+const PIP_HEIGHT = 230
 const AMBIENCE_KEY = 'fluiser.ambienceEnabled'
 const AMBIENCE_VOLUME = 0.16
 const FONT = 'system-ui, -apple-system, "SF Pro Text", "Inter", sans-serif'
 
-// Reads a CSS custom property from the live theme (so light/dark and tone
-// colors always match the current app skin). Some tokens alias another
-// custom property (e.g. --sky: var(--accent)) — getComputedStyle doesn't
-// resolve that chain on its own, so we walk it manually.
-function cssVar(name: string, fallback: string): string {
-  const root = getComputedStyle(document.documentElement)
-  let value = root.getPropertyValue(name).trim()
-  let guard = 0
-  while (value.startsWith('var(') && guard++ < 5) {
-    const inner = value.slice(4, -1).trim()
-    const [ref, fb] = inner.split(',').map((s) => s.trim())
-    value = root.getPropertyValue(ref).trim() || fb || ''
-  }
-  return value || fallback
+const PALETTE = {
+  bgTop: 'oklch(0.19 0.01 260)',
+  bgBottom: 'oklch(0.14 0.012 260)',
+  track: 'oklch(0.3 0.01 260)',
+  divider: 'oklch(0.3 0.01 260 / 0.6)',
+  textPrimary: '#ffffff',
+  textSecondary: 'oklch(0.85 0.01 260)',
+  textTertiary: 'oklch(0.65 0.02 260)',
+  textQuaternary: 'oklch(0.6 0.02 260)',
+  textFooter: 'oklch(0.55 0.02 260)',
+  pillOff: 'oklch(0.35 0.01 260)',
+} as const
+
+const TONE_ACCENT: Record<string, string> = {
+  sky: '#7BB6FF',
+  mint: '#86D6B0',
+  amber: '#E8B575',
+  rose: '#E89B95',
+  lilac: '#B8A8E0',
+}
+
+function darken(hex: string, factor: number): string {
+  const h = hex.replace('#', '')
+  const r = Math.round(parseInt(h.substring(0, 2), 16) * factor)
+  const g = Math.round(parseInt(h.substring(2, 4), 16) * factor)
+  const b = Math.round(parseInt(h.substring(4, 6), 16) * factor)
+  return `rgb(${r}, ${g}, ${b})`
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.substring(0, 2), 16)
+  const g = parseInt(h.substring(2, 4), 16)
+  const b = parseInt(h.substring(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text
+  let s = text
+  while (s.length > 1 && ctx.measureText(s + '…').width > maxWidth) s = s.slice(0, -1)
+  return s + '…'
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -34,19 +66,12 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath()
 }
 
-function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-  if (ctx.measureText(text).width <= maxWidth) return text
-  let s = text
-  while (s.length > 1 && ctx.measureText(s + '…').width > maxWidth) s = s.slice(0, -1)
-  return s + '…'
-}
-
-function drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, bg: string, fg: string, letter: string) {
-  roundRect(ctx, x, y, size, size, size * 0.32)
-  ctx.fillStyle = bg
+function drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, accent: string, letter: string) {
+  roundRect(ctx, x, y, size, size, size * 0.3)
+  ctx.fillStyle = darken(accent, 0.78)
   ctx.fill()
-  ctx.fillStyle = fg
-  ctx.font = `700 ${Math.round(size * 0.46)}px ${FONT}`
+  ctx.fillStyle = PALETTE.textPrimary
+  ctx.font = `700 ${Math.round(size * 0.44)}px ${FONT}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText(letter, x + size / 2, y + size / 2 + 1)
@@ -54,33 +79,16 @@ function drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, size: nu
   ctx.textBaseline = 'alphabetic'
 }
 
-function drawSessionDots(ctx: CanvasRenderingContext2D, cx: number, y: number, sessions: number, current: number, color: string, track: string) {
-  const gap = 11
-  const totalW = (sessions - 1) * gap
-  let x = cx - totalW / 2
+function drawSessionPills(ctx: CanvasRenderingContext2D, x: number, y: number, sessions: number, current: number, accent: string) {
+  const w = 14
+  const h = 4
+  const gap = 4
   for (let i = 1; i <= sessions; i++) {
-    ctx.beginPath()
-    ctx.arc(x, y, i === current ? 3.2 : 2.6, 0, Math.PI * 2)
-    ctx.fillStyle = i <= current ? color : track
+    roundRect(ctx, x, y, w, h, 2)
+    ctx.fillStyle = i <= current ? accent : PALETTE.pillOff
     ctx.fill()
-    x += gap
+    x += w + gap
   }
-}
-
-function drawPill(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, bg: string, fg: string): number {
-  ctx.font = `600 11px ${FONT}`
-  const padX = 9
-  const h = 20
-  const w = ctx.measureText(text).width + padX * 2
-  roundRect(ctx, x, y, w, h, h / 2)
-  ctx.fillStyle = bg
-  ctx.fill()
-  ctx.fillStyle = fg
-  ctx.textAlign = 'left'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(text, x + padX, y + h / 2 + 1)
-  ctx.textBaseline = 'alphabetic'
-  return w
 }
 
 // ── Ambient loop (brown noise) ──
@@ -182,6 +190,7 @@ export function useTimerPip() {
   let ctx2d: CanvasRenderingContext2D | null = null
   let video: HTMLVideoElement | null = null
   let drawInterval: ReturnType<typeof setInterval> | null = null
+  let bgGradient: CanvasGradient | null = null
 
   function ensureCanvas() {
     if (canvas) return
@@ -199,13 +208,19 @@ export function useTimerPip() {
     const W = PIP_WIDTH
     const H = PIP_HEIGHT
     ctx.clearRect(0, 0, W, H)
-    ctx.fillStyle = cssVar('--bg-base', '#0A0B0D')
+
+    if (!bgGradient) {
+      bgGradient = ctx.createLinearGradient(0, 0, 0, H)
+      bgGradient.addColorStop(0, PALETTE.bgTop)
+      bgGradient.addColorStop(1, PALETTE.bgBottom)
+    }
+    ctx.fillStyle = bgGradient
     ctx.fillRect(0, 0, W, H)
 
     const ts = store.timerState
     const habit = store.activeTimer
     if (!ts || !habit) {
-      ctx.fillStyle = cssVar('--text-3', 'rgba(255,255,255,0.38)')
+      ctx.fillStyle = PALETTE.textTertiary
       ctx.font = `500 13px ${FONT}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
@@ -219,19 +234,14 @@ export function useTimerPip() {
     const isFlow = ts.phase === 'flow-check'
     const isReview = ts.phase === 'review'
     const toneKey = isBreak ? 'mint' : habit.tone
-    const color = cssVar(`--${toneKey}`, '#7BB6FF')
-    const colorSoft = cssVar(`--${toneKey}-soft`, 'rgba(123,182,255,0.14)')
-    const textMain = cssVar('--text-1', 'rgba(255,255,255,0.94)')
-    const textMuted = cssVar('--text-2', 'rgba(255,255,255,0.60)')
-    const textSubtle = cssVar('--text-3', 'rgba(255,255,255,0.38)')
-    const track = cssVar('--border-subtle', 'rgba(255,255,255,0.05)')
+    const accent = TONE_ACCENT[toneKey] ?? TONE_ACCENT.sky
 
-    // ── Ring ──
-    const cx = 96
-    const cy = 100
-    const r = 60
+    // ── Left: ring ──
+    const cx = 101
+    const cy = 115
+    const r = 64
 
-    ctx.strokeStyle = track
+    ctx.strokeStyle = PALETTE.track
     ctx.lineWidth = 9
     ctx.beginPath()
     ctx.arc(cx, cy, r, 0, Math.PI * 2)
@@ -246,9 +256,9 @@ export function useTimerPip() {
     progress = Math.max(0, Math.min(1, progress))
 
     ctx.save()
-    ctx.shadowColor = color
-    ctx.shadowBlur = 14
-    ctx.strokeStyle = color
+    ctx.shadowColor = hexToRgba(accent, 0.7)
+    ctx.shadowBlur = 10
+    ctx.strokeStyle = accent
     ctx.lineWidth = 9
     ctx.lineCap = 'round'
     ctx.beginPath()
@@ -257,7 +267,7 @@ export function useTimerPip() {
     ctx.restore()
 
     if (isReview) {
-      ctx.strokeStyle = color
+      ctx.strokeStyle = accent
       ctx.lineWidth = 5
       ctx.lineCap = 'round'
       ctx.lineJoin = 'round'
@@ -268,75 +278,87 @@ export function useTimerPip() {
       ctx.stroke()
     } else {
       const remaining = ts.remaining ?? 0
-      ctx.fillStyle = textMain
-      ctx.font = `700 30px ${FONT}`
+      ctx.fillStyle = PALETTE.textPrimary
+      ctx.font = `700 34px ${FONT}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       if (isFlow) {
-        ctx.fillText(`${Math.max(0, remaining)}s`, cx, cy)
+        ctx.fillText(`${Math.max(0, remaining)}s`, cx, cy - 6)
       } else {
         const mm = String(Math.floor(remaining / 60)).padStart(2, '0')
         const ss = String(remaining % 60).padStart(2, '0')
-        ctx.fillText(`${mm}:${ss}`, cx, cy)
+        ctx.fillText(`${mm}:${ss}`, cx, cy - 6)
       }
+      ctx.fillStyle = PALETTE.textTertiary
+      ctx.font = `500 11px ${FONT}`
+      ctx.fillText(isFlow ? t('extra', 'bonus') : t('restantes', 'left'), cx, cy + 18)
       ctx.textAlign = 'left'
       ctx.textBaseline = 'alphabetic'
     }
 
-    if (ts.sessions > 1 && !isFlow && !isReview) {
-      drawSessionDots(ctx, cx, cy + r + 22, ts.sessions, ts.currentSession, color, track)
-    }
-
-    // ── Right column ──
-    const rx = 176
-    ctx.strokeStyle = track
+    // ── Divider ──
+    const rx = 229
+    ctx.strokeStyle = PALETTE.divider
     ctx.lineWidth = 1
     ctx.beginPath()
-    ctx.moveTo(rx - 20, 18)
-    ctx.lineTo(rx - 20, H - 18)
+    ctx.moveTo(rx - 27, 24)
+    ctx.lineTo(rx - 27, H - 24)
     ctx.stroke()
 
+    // ── Right: info column ──
     const letter = (habit.name.trim()[0] ?? '?').toUpperCase()
-    drawBadge(ctx, rx, 14, 27, colorSoft, color, letter)
-    ctx.fillStyle = textMain
+    drawBadge(ctx, rx, 62, 30, accent, letter)
+    ctx.fillStyle = PALETTE.textPrimary
     ctx.font = `700 16px ${FONT}`
     ctx.textBaseline = 'middle'
-    ctx.fillText(truncateText(ctx, habit.name, W - rx - 27 - 28), rx + 36, 14 + 13)
+    ctx.fillText(truncateText(ctx, habit.name, W - rx - 30 - 10 - 20), rx + 40, 62 + 15)
     ctx.textBaseline = 'alphabetic'
 
     let phaseLabel = t('Enfoque', 'Focus')
     if (isReview) phaseLabel = t('Sesión completa', 'Session complete')
     else if (isFlow) phaseLabel = t('¿Sigues en flujo?', 'Still in flow?')
     else if (isBreak) phaseLabel = t('Pausa', 'Break')
-    let phaseText = phaseLabel.toUpperCase()
-    if (!isFlow && !isReview && ts.sessions > 1) phaseText += `  ·  ${ts.currentSession}/${ts.sessions}`
-    ctx.fillStyle = color
-    ctx.font = `700 11px ${FONT}`
-    ctx.fillText(truncateText(ctx, phaseText, W - rx - 12), rx, 54)
+    ctx.fillStyle = accent
+    ctx.font = `700 12px ${FONT}`
+    ctx.fillText(truncateText(ctx, phaseLabel.toUpperCase(), W - rx - 20), rx, 106)
 
-    const statusY = 84
-    const dotColor = isReview || !ts.paused ? color : textSubtle
+    const statusDotY = 130
     ctx.beginPath()
-    ctx.arc(rx + 4, statusY + 5, 4, 0, Math.PI * 2)
-    ctx.fillStyle = dotColor
+    ctx.arc(rx + 3.5, statusDotY, 3.5, 0, Math.PI * 2)
+    ctx.fillStyle = accent
     ctx.fill()
 
     let statusText = t('En marcha', 'Running')
     if (isReview) statusText = t('Guardado', 'Saved')
     else if (isFlow) statusText = t('Sesión terminada', 'Session ended')
     else if (ts.paused) statusText = t('Pausado', 'Paused')
-    ctx.fillStyle = textMuted
+    ctx.fillStyle = PALETTE.textSecondary
     ctx.font = `500 13px ${FONT}`
-    ctx.fillText(statusText, rx + 15, statusY + 9)
+    ctx.textBaseline = 'middle'
+    ctx.fillText(statusText, rx + 14, statusDotY + 1)
+    ctx.textBaseline = 'alphabetic'
 
-    if (ts.flowExtensions > 0) {
-      drawPill(ctx, rx, statusY + 24, `+${ts.flowExtensions * 5} ${t('min de flujo', 'min flow')}`, colorSoft, color)
+    if (!isFlow && ts.sessions > 1) {
+      const sessionLabel = t(`Sesión ${ts.currentSession} de ${ts.sessions}`, `Session ${ts.currentSession} of ${ts.sessions}`)
+      ctx.fillStyle = PALETTE.textQuaternary
+      ctx.font = `500 12px ${FONT}`
+      ctx.textBaseline = 'middle'
+      ctx.fillText(sessionLabel, rx, 156)
+      const labelWidth = ctx.measureText(sessionLabel).width
+      drawSessionPills(ctx, rx + labelWidth + 8, 152, ts.sessions, ts.currentSession, accent)
+      ctx.textBaseline = 'alphabetic'
+    } else if (ts.flowExtensions > 0) {
+      ctx.fillStyle = PALETTE.textQuaternary
+      ctx.font = `500 12px ${FONT}`
+      ctx.textBaseline = 'middle'
+      ctx.fillText(`+${ts.flowExtensions * 5} ${t('min de flujo', 'min flow')}`, rx, 156)
+      ctx.textBaseline = 'alphabetic'
     }
 
-    ctx.fillStyle = textSubtle
-    ctx.font = `600 10px ${FONT}`
+    ctx.fillStyle = PALETTE.textFooter
+    ctx.font = `500 11px ${FONT}`
     ctx.textAlign = 'right'
-    ctx.fillText('✦ Fluiser', W - 16, H - 16)
+    ctx.fillText('Fluiser', W - 18, H - 14)
     ctx.textAlign = 'left'
   }
 
