@@ -306,12 +306,19 @@ export function useTimerPip() {
     ctx.stroke()
 
     // ── Right: info column ──
+    // Rows are spaced with generous, explicit gaps (badge/name → phase →
+    // status → session) so labels never read as visually stuck together.
+    const nameY = 50
+    const phaseY = 100
+    const statusDotY = 134
+    const sessionY = 166
+
     const letter = (habit.name.trim()[0] ?? '?').toUpperCase()
-    drawBadge(ctx, rx, 62, 30, accent, letter)
+    drawBadge(ctx, rx, nameY, 30, accent, letter)
     ctx.fillStyle = PALETTE.textPrimary
     ctx.font = `700 16px ${FONT}`
     ctx.textBaseline = 'middle'
-    ctx.fillText(truncateText(ctx, habit.name, W - rx - 30 - 10 - 20), rx + 40, 62 + 15)
+    ctx.fillText(truncateText(ctx, habit.name, W - rx - 30 - 10 - 20), rx + 40, nameY + 15)
     ctx.textBaseline = 'alphabetic'
 
     let phaseLabel = t('Enfoque', 'Focus')
@@ -320,9 +327,8 @@ export function useTimerPip() {
     else if (isBreak) phaseLabel = t('Pausa', 'Break')
     ctx.fillStyle = accent
     ctx.font = `700 12px ${FONT}`
-    ctx.fillText(truncateText(ctx, phaseLabel.toUpperCase(), W - rx - 20), rx, 106)
+    ctx.fillText(truncateText(ctx, phaseLabel.toUpperCase(), W - rx - 20), rx, phaseY)
 
-    const statusDotY = 130
     ctx.beginPath()
     ctx.arc(rx + 3.5, statusDotY, 3.5, 0, Math.PI * 2)
     ctx.fillStyle = accent
@@ -343,15 +349,15 @@ export function useTimerPip() {
       ctx.fillStyle = PALETTE.textQuaternary
       ctx.font = `500 12px ${FONT}`
       ctx.textBaseline = 'middle'
-      ctx.fillText(sessionLabel, rx, 156)
+      ctx.fillText(sessionLabel, rx, sessionY)
       const labelWidth = ctx.measureText(sessionLabel).width
-      drawSessionPills(ctx, rx + labelWidth + 8, 152, ts.sessions, ts.currentSession, accent)
+      drawSessionPills(ctx, rx + labelWidth + 8, sessionY - 4, ts.sessions, ts.currentSession, accent)
       ctx.textBaseline = 'alphabetic'
     } else if (ts.flowExtensions > 0) {
       ctx.fillStyle = PALETTE.textQuaternary
       ctx.font = `500 12px ${FONT}`
       ctx.textBaseline = 'middle'
-      ctx.fillText(`+${ts.flowExtensions * 5} ${t('min de flujo', 'min flow')}`, rx, 156)
+      ctx.fillText(`+${ts.flowExtensions * 5} ${t('min de flujo', 'min flow')}`, rx, sessionY)
       ctx.textBaseline = 'alphabetic'
     }
 
