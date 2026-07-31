@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
+import { useConfirm } from '@/composables/useConfirm'
 import { ICON_MAP, XIcon, CheckIcon } from '@/components/icons/AppIcons'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import type { Meta, HabitIcon, Tone, MetaStatus } from '@/types'
@@ -19,6 +20,7 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 
 const store = useFluiserStore()
 const t = useT()
+const { confirm } = useConfirm()
 
 const cachedId = ref<string | null>(null)
 const cachedIsNew = ref(false)
@@ -78,9 +80,15 @@ function save() {
   emit('close')
 }
 
-function deleteMeta() {
+async function deleteMeta() {
   if (!cachedId.value) return
-  if (window.confirm(t('¿Eliminar esta meta?', 'Delete this goal?'))) {
+  const confirmed = await confirm({
+    title: t('¿Eliminar esta meta?', 'Delete this goal?'),
+    message: t('Esta acción no se puede deshacer.', 'This action cannot be undone.'),
+    confirmLabel: t('Eliminar', 'Delete'),
+    tone: 'danger',
+  })
+  if (confirmed) {
     store.deleteMeta(cachedId.value)
     emit('close')
   }

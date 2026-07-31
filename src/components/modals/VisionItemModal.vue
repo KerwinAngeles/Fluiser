@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
+import { useConfirm } from '@/composables/useConfirm'
 import { XIcon, CheckIcon } from '@/components/icons/AppIcons'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import type { VisionItem, Tone, VisionCategory } from '@/types'
@@ -22,6 +23,7 @@ const emit = defineEmits<{ close: []; saved: [] }>()
 
 const store = useFluiserStore()
 const t = useT()
+const { confirm } = useConfirm()
 
 const cachedId = ref<string | null>(null)
 const cachedIsNew = ref(false)
@@ -59,9 +61,15 @@ function save() {
   emit('close')
 }
 
-function deleteItem() {
+async function deleteItem() {
   if (!cachedId.value) return
-  if (window.confirm(t('¿Eliminar este item?', 'Delete this item?'))) {
+  const confirmed = await confirm({
+    title: t('¿Eliminar este item?', 'Delete this item?'),
+    message: t('Esta acción no se puede deshacer.', 'This action cannot be undone.'),
+    confirmLabel: t('Eliminar', 'Delete'),
+    tone: 'danger',
+  })
+  if (confirmed) {
     store.deleteVisionItem(cachedId.value)
     emit('close')
   }

@@ -9,6 +9,7 @@ import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppBackground from '@/components/ui/AppBackground.vue'
 import TimerView from '@/views/TimerView.vue'
 import TimerWidget from '@/components/ui/TimerWidget.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import FocusModeView from '@/views/FocusModeView.vue'
 import { RouterView } from 'vue-router'
 import { SpeedInsights } from '@vercel/speed-insights/vue'
@@ -105,6 +106,8 @@ const outerGate = computed(() => {
 
   <!-- Floating timer widget — visible when timer is minimized, across all views -->
   <TimerWidget />
+
+  <ConfirmDialog />
 
   <SpeedInsights />
 </template>

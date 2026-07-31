@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT, useCatLabel, useLang } from '@/composables/useLang'
 import { useToday } from '@/composables/useToday'
+import { useConfirm } from '@/composables/useConfirm'
 import { CATEGORIES } from '@/types'
 import { ICON_MAP, XIcon, CheckIcon, ArrowLeftIcon } from '@/components/icons/AppIcons'
 import type { Habit, CategoryId, HabitIcon, Tone, CategoryDef, HabitTimer } from '@/types'
@@ -27,6 +28,7 @@ const t = useT()
 const catLabel = useCatLabel()
 const lang = useLang()
 const { today } = useToday()
+const { confirm } = useConfirm()
 
 const isNewHabit = route.name === 'habit-new'
 const habitId = isNewHabit ? crypto.randomUUID() : (route.params.id as string)
@@ -179,12 +181,19 @@ function save() {
   router.push('/habits')
 }
 
-function toggleActive() {
+async function toggleActive() {
   const willActivate = !active.value
-  const msg = willActivate
-    ? t('¿Reactivar este hábito?', 'Reactivate this habit?')
-    : t('¿Inactivar este hábito? No aparecerá en tus listas, pero conservas su historial.', 'Deactivate this habit? It will stop appearing in your lists, but its history is kept.')
-  if (window.confirm(msg)) {
+  const confirmed = await confirm({
+    title: willActivate
+      ? t('¿Reactivar este hábito?', 'Reactivate this habit?')
+      : t('¿Inactivar este hábito?', 'Deactivate this habit?'),
+    message: willActivate
+      ? t('Volverá a aparecer en tus listas y en el dashboard.', 'It will show up again in your lists and dashboard.')
+      : t('No aparecerá en tus listas, pero conservas su historial.', 'It will stop appearing in your lists, but its history is kept.'),
+    confirmLabel: willActivate ? t('Reactivar', 'Reactivate') : t('Inactivar', 'Deactivate'),
+    tone: willActivate ? 'default' : 'danger',
+  })
+  if (confirmed) {
     active.value = willActivate
     store.setHabitActive(habitId, willActivate)
     router.push('/habits')
