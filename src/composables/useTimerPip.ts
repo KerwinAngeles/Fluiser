@@ -2,14 +2,85 @@ import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 
-const PIP_WIDTH = 320
-const PIP_HEIGHT = 180
+const PIP_WIDTH = 360
+const PIP_HEIGHT = 200
 const AMBIENCE_KEY = 'fluiser.ambienceEnabled'
 const AMBIENCE_VOLUME = 0.16
+const FONT = 'system-ui, -apple-system, "SF Pro Text", "Inter", sans-serif'
 
+// Reads a CSS custom property from the live theme (so light/dark and tone
+// colors always match the current app skin). Some tokens alias another
+// custom property (e.g. --sky: var(--accent)) — getComputedStyle doesn't
+// resolve that chain on its own, so we walk it manually.
 function cssVar(name: string, fallback: string): string {
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
-  return v || fallback
+  const root = getComputedStyle(document.documentElement)
+  let value = root.getPropertyValue(name).trim()
+  let guard = 0
+  while (value.startsWith('var(') && guard++ < 5) {
+    const inner = value.slice(4, -1).trim()
+    const [ref, fb] = inner.split(',').map((s) => s.trim())
+    value = root.getPropertyValue(ref).trim() || fb || ''
+  }
+  return value || fallback
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + w, y, x + w, y + h, r)
+  ctx.arcTo(x + w, y + h, x, y + h, r)
+  ctx.arcTo(x, y + h, x, y, r)
+  ctx.arcTo(x, y, x + w, y, r)
+  ctx.closePath()
+}
+
+function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text
+  let s = text
+  while (s.length > 1 && ctx.measureText(s + '…').width > maxWidth) s = s.slice(0, -1)
+  return s + '…'
+}
+
+function drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, bg: string, fg: string, letter: string) {
+  roundRect(ctx, x, y, size, size, size * 0.32)
+  ctx.fillStyle = bg
+  ctx.fill()
+  ctx.fillStyle = fg
+  ctx.font = `700 ${Math.round(size * 0.46)}px ${FONT}`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(letter, x + size / 2, y + size / 2 + 1)
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
+}
+
+function drawSessionDots(ctx: CanvasRenderingContext2D, cx: number, y: number, sessions: number, current: number, color: string, track: string) {
+  const gap = 11
+  const totalW = (sessions - 1) * gap
+  let x = cx - totalW / 2
+  for (let i = 1; i <= sessions; i++) {
+    ctx.beginPath()
+    ctx.arc(x, y, i === current ? 3.2 : 2.6, 0, Math.PI * 2)
+    ctx.fillStyle = i <= current ? color : track
+    ctx.fill()
+    x += gap
+  }
+}
+
+function drawPill(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, bg: string, fg: string): number {
+  ctx.font = `600 11px ${FONT}`
+  const padX = 9
+  const h = 20
+  const w = ctx.measureText(text).width + padX * 2
+  roundRect(ctx, x, y, w, h, h / 2)
+  ctx.fillStyle = bg
+  ctx.fill()
+  ctx.fillStyle = fg
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, x + padX, y + h / 2 + 1)
+  ctx.textBaseline = 'alphabetic'
+  return w
 }
 
 // ── Ambient loop (brown noise) ──
@@ -114,71 +185,159 @@ export function useTimerPip() {
 
   function ensureCanvas() {
     if (canvas) return
+    const dpr = window.devicePixelRatio || 1
     canvas = document.createElement('canvas')
-    canvas.width = PIP_WIDTH
-    canvas.height = PIP_HEIGHT
+    canvas.width = Math.round(PIP_WIDTH * dpr)
+    canvas.height = Math.round(PIP_HEIGHT * dpr)
     ctx2d = canvas.getContext('2d')
+    ctx2d?.scale(dpr, dpr)
   }
 
   function draw() {
-    if (!ctx2d || !canvas) return
-    const W = canvas.width
-    const H = canvas.height
-    ctx2d.clearRect(0, 0, W, H)
-    ctx2d.fillStyle = cssVar('--bg-base', '#0b0c0f')
-    ctx2d.fillRect(0, 0, W, H)
+    if (!ctx2d) return
+    const ctx = ctx2d
+    const W = PIP_WIDTH
+    const H = PIP_HEIGHT
+    ctx.clearRect(0, 0, W, H)
+    ctx.fillStyle = cssVar('--bg-base', '#0A0B0D')
+    ctx.fillRect(0, 0, W, H)
 
     const ts = store.timerState
     const habit = store.activeTimer
-    if (!ts || !habit) return
+    if (!ts || !habit) {
+      ctx.fillStyle = cssVar('--text-3', 'rgba(255,255,255,0.38)')
+      ctx.font = `500 13px ${FONT}`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(t('Sin sesión activa', 'No active session'), W / 2, H / 2)
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+      return
+    }
 
     const isBreak = ts.phase === 'break'
-    const color = isBreak ? cssVar('--mint', '#5eead4') : cssVar(`--${habit.tone}`, '#5b9bf5')
+    const isFlow = ts.phase === 'flow-check'
+    const isReview = ts.phase === 'review'
+    const toneKey = isBreak ? 'mint' : habit.tone
+    const color = cssVar(`--${toneKey}`, '#7BB6FF')
+    const colorSoft = cssVar(`--${toneKey}-soft`, 'rgba(123,182,255,0.14)')
+    const textMain = cssVar('--text-1', 'rgba(255,255,255,0.94)')
+    const textMuted = cssVar('--text-2', 'rgba(255,255,255,0.60)')
+    const textSubtle = cssVar('--text-3', 'rgba(255,255,255,0.38)')
+    const track = cssVar('--border-subtle', 'rgba(255,255,255,0.05)')
 
-    ctx2d.textBaseline = 'top'
-    ctx2d.fillStyle = cssVar('--text-1', '#f5f5f7')
-    ctx2d.font = '600 16px system-ui, sans-serif'
-    ctx2d.fillText(habit.name, 148, 20, W - 168)
+    // ── Ring ──
+    const cx = 96
+    const cy = 100
+    const r = 60
 
-    const phaseLabel = ts.phase === 'review'
-      ? t('Listo', 'Done')
-      : isBreak ? t('Pausa', 'Break') : t('Enfoque', 'Focus')
-    ctx2d.fillStyle = color
-    ctx2d.font = '600 12px system-ui, sans-serif'
-    ctx2d.fillText(phaseLabel.toUpperCase(), 148, 44)
+    ctx.strokeStyle = track
+    ctx.lineWidth = 9
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.stroke()
 
-    // Ring
-    const cx = 70
-    const cy = H / 2
-    const r = 50
-    const total = isBreak ? ts.breakSec : ts.workSec
-    const remaining = ts.remaining ?? 0
-    const progress = total ? 1 - remaining / total : 1
-    ctx2d.strokeStyle = cssVar('--border-subtle', '#2a2d33')
-    ctx2d.lineWidth = 7
-    ctx2d.beginPath()
-    ctx2d.arc(cx, cy, r, 0, Math.PI * 2)
-    ctx2d.stroke()
-    ctx2d.strokeStyle = color
-    ctx2d.lineCap = 'round'
-    ctx2d.beginPath()
-    ctx2d.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, Math.min(1, progress)))
-    ctx2d.stroke()
+    let progress = 1
+    if (isFlow) progress = (ts.remaining ?? 0) / 12
+    else if (!isReview) {
+      const total = isBreak ? ts.breakSec : ts.workSec
+      progress = total ? 1 - (ts.remaining ?? 0) / total : 1
+    }
+    progress = Math.max(0, Math.min(1, progress))
 
-    const mm = String(Math.floor(remaining / 60)).padStart(2, '0')
-    const ss = String(remaining % 60).padStart(2, '0')
-    ctx2d.fillStyle = cssVar('--text-1', '#f5f5f7')
-    ctx2d.font = '600 15px system-ui, sans-serif'
-    ctx2d.textAlign = 'center'
-    ctx2d.textBaseline = 'middle'
-    ctx2d.fillText(`${mm}:${ss}`, cx, cy)
-    ctx2d.textAlign = 'left'
-    ctx2d.textBaseline = 'alphabetic'
+    ctx.save()
+    ctx.shadowColor = color
+    ctx.shadowBlur = 14
+    ctx.strokeStyle = color
+    ctx.lineWidth = 9
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress)
+    ctx.stroke()
+    ctx.restore()
 
-    ctx2d.fillStyle = ts.paused ? cssVar('--text-3', '#8a8f98') : color
-    ctx2d.font = '500 13px system-ui, sans-serif'
-    ctx2d.textBaseline = 'top'
-    ctx2d.fillText(ts.paused ? t('Pausado', 'Paused') : t('En marcha', 'Running'), 148, H - 40)
+    if (isReview) {
+      ctx.strokeStyle = color
+      ctx.lineWidth = 5
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.beginPath()
+      ctx.moveTo(cx - 20, cy)
+      ctx.lineTo(cx - 6, cy + 14)
+      ctx.lineTo(cx + 22, cy - 16)
+      ctx.stroke()
+    } else {
+      const remaining = ts.remaining ?? 0
+      ctx.fillStyle = textMain
+      ctx.font = `700 30px ${FONT}`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      if (isFlow) {
+        ctx.fillText(`${Math.max(0, remaining)}s`, cx, cy)
+      } else {
+        const mm = String(Math.floor(remaining / 60)).padStart(2, '0')
+        const ss = String(remaining % 60).padStart(2, '0')
+        ctx.fillText(`${mm}:${ss}`, cx, cy)
+      }
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'alphabetic'
+    }
+
+    if (ts.sessions > 1 && !isFlow && !isReview) {
+      drawSessionDots(ctx, cx, cy + r + 22, ts.sessions, ts.currentSession, color, track)
+    }
+
+    // ── Right column ──
+    const rx = 176
+    ctx.strokeStyle = track
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(rx - 20, 18)
+    ctx.lineTo(rx - 20, H - 18)
+    ctx.stroke()
+
+    const letter = (habit.name.trim()[0] ?? '?').toUpperCase()
+    drawBadge(ctx, rx, 14, 27, colorSoft, color, letter)
+    ctx.fillStyle = textMain
+    ctx.font = `700 16px ${FONT}`
+    ctx.textBaseline = 'middle'
+    ctx.fillText(truncateText(ctx, habit.name, W - rx - 27 - 28), rx + 36, 14 + 13)
+    ctx.textBaseline = 'alphabetic'
+
+    let phaseLabel = t('Enfoque', 'Focus')
+    if (isReview) phaseLabel = t('Sesión completa', 'Session complete')
+    else if (isFlow) phaseLabel = t('¿Sigues en flujo?', 'Still in flow?')
+    else if (isBreak) phaseLabel = t('Pausa', 'Break')
+    let phaseText = phaseLabel.toUpperCase()
+    if (!isFlow && !isReview && ts.sessions > 1) phaseText += `  ·  ${ts.currentSession}/${ts.sessions}`
+    ctx.fillStyle = color
+    ctx.font = `700 11px ${FONT}`
+    ctx.fillText(truncateText(ctx, phaseText, W - rx - 12), rx, 54)
+
+    const statusY = 84
+    const dotColor = isReview || !ts.paused ? color : textSubtle
+    ctx.beginPath()
+    ctx.arc(rx + 4, statusY + 5, 4, 0, Math.PI * 2)
+    ctx.fillStyle = dotColor
+    ctx.fill()
+
+    let statusText = t('En marcha', 'Running')
+    if (isReview) statusText = t('Guardado', 'Saved')
+    else if (isFlow) statusText = t('Sesión terminada', 'Session ended')
+    else if (ts.paused) statusText = t('Pausado', 'Paused')
+    ctx.fillStyle = textMuted
+    ctx.font = `500 13px ${FONT}`
+    ctx.fillText(statusText, rx + 15, statusY + 9)
+
+    if (ts.flowExtensions > 0) {
+      drawPill(ctx, rx, statusY + 24, `+${ts.flowExtensions * 5} ${t('min de flujo', 'min flow')}`, colorSoft, color)
+    }
+
+    ctx.fillStyle = textSubtle
+    ctx.font = `600 10px ${FONT}`
+    ctx.textAlign = 'right'
+    ctx.fillText('✦ Fluiser', W - 16, H - 16)
+    ctx.textAlign = 'left'
   }
 
   function ensureVideo(): HTMLVideoElement {
