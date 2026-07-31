@@ -4,6 +4,8 @@ import { useT } from '@/composables/useLang'
 
 const PIP_WIDTH = 260
 const PIP_HEIGHT = 150
+const AMBIENCE_KEY = 'fluiser.ambienceEnabled'
+const AMBIENCE_VOLUME = 0.16
 
 interface PipEls {
   dot: HTMLElement
@@ -90,9 +92,89 @@ function buildContent(doc: Document, onToggle: () => void): PipEls {
   return { dot, name, phase, time, playBtn, playIcon }
 }
 
+// ── Ambient loop (brown noise) ──
+// Chrome only grants "automatic picture-in-picture" (popping the PiP window
+// when the user switches tabs, with no click required) to pages that have an
+// actually-audible <audio>/<video> element playing. A silent timer doesn't
+// qualify, so we loop a very low-volume ambient noise track while a session
+// is running — this doubles as a soft focus sound and unlocks the Chrome
+// auto-PiP behavior via the Media Session API below.
+function encodeWav(buffer: AudioBuffer): Blob {
+  const numChannels = buffer.numberOfChannels
+  const sampleRate = buffer.sampleRate
+  const blockAlign = numChannels * 2
+  const dataLength = buffer.length * blockAlign
+  const arrayBuffer = new ArrayBuffer(44 + dataLength)
+  const view = new DataView(arrayBuffer)
+  const writeStr = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
+  }
+  writeStr(0, 'RIFF')
+  view.setUint32(4, 36 + dataLength, true)
+  writeStr(8, 'WAVE')
+  writeStr(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, numChannels, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * blockAlign, true)
+  view.setUint16(32, blockAlign, true)
+  view.setUint16(34, 16, true)
+  writeStr(36, 'data')
+  view.setUint32(40, dataLength, true)
+
+  const channels: Float32Array[] = []
+  for (let c = 0; c < numChannels; c++) channels.push(buffer.getChannelData(c))
+  let offset = 44
+  for (let i = 0; i < buffer.length; i++) {
+    for (let c = 0; c < numChannels; c++) {
+      const s = Math.max(-1, Math.min(1, channels[c][i]))
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true)
+      offset += 2
+    }
+  }
+  return new Blob([arrayBuffer], { type: 'audio/wav' })
+}
+
+function buildAmbienceBuffer(sampleRate: number, seconds: number): AudioBuffer {
+  const length = sampleRate * seconds
+  const ctx = new OfflineAudioContext(1, length, sampleRate)
+  const buffer = ctx.createBuffer(1, length, sampleRate)
+  const data = buffer.getChannelData(0)
+  let lastOut = 0
+  for (let i = 0; i < length; i++) {
+    const white = Math.random() * 2 - 1
+    lastOut = (lastOut + 0.02 * white) / 1.02
+    data[i] = lastOut * 3.5
+  }
+  return buffer
+}
+
+let ambienceAudio: HTMLAudioElement | null = null
+
+function ensureAmbienceAudio(): HTMLAudioElement {
+  if (ambienceAudio) return ambienceAudio
+  const buffer = buildAmbienceBuffer(44100, 6)
+  const url = URL.createObjectURL(encodeWav(buffer))
+  const el = new Audio(url)
+  el.loop = true
+  el.preload = 'auto'
+  el.volume = AMBIENCE_VOLUME
+  ambienceAudio = el
+  return el
+}
+
+function loadAmbienceEnabled(): boolean {
+  try { return localStorage.getItem(AMBIENCE_KEY) !== 'off' } catch { return true }
+}
+function saveAmbienceEnabled(v: boolean) {
+  try { localStorage.setItem(AMBIENCE_KEY, v ? 'on' : 'off') } catch { /* ignore */ }
+}
+
 export function useTimerPip() {
   const supported = typeof window !== 'undefined' && 'documentPictureInPicture' in window
   const active = ref(false)
+  const ambienceEnabled = ref(loadAmbienceEnabled())
   const store = useFluiserStore()
   const t = useT()
 
@@ -150,8 +232,44 @@ export function useTimerPip() {
     else await open()
   }
 
+  function toggleAmbience() {
+    ambienceEnabled.value = !ambienceEnabled.value
+    saveAmbienceEnabled(ambienceEnabled.value)
+    syncAmbience()
+  }
+
+  function syncAmbience() {
+    const ts = store.timerState
+    const running = !!ts && !ts.paused && ts.phase !== 'review'
+    if ('mediaSession' in navigator) {
+      const habit = store.activeTimer
+      if (ts && habit) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: habit.name,
+          artist: ts.phase === 'break' ? t('Pausa', 'Break') : t('Enfoque', 'Focus'),
+          album: 'Fluiser',
+        })
+      } else {
+        navigator.mediaSession.metadata = null
+      }
+      navigator.mediaSession.playbackState = running ? 'playing' : 'paused'
+    }
+    if (running && ambienceEnabled.value) {
+      ensureAmbienceAudio().play().catch(() => { /* blocked until next user gesture */ })
+    } else {
+      ambienceAudio?.pause()
+    }
+  }
+
   watch(() => store.activeTimer, (h) => { if (!h) close() })
   watch(() => store.timerMinimized, (min) => { if (!min) close() })
+  watch(() => [store.timerState?.phase, store.timerState?.paused, store.activeTimer?.id], syncAmbience, { immediate: true })
 
-  return { supported, active, toggle }
+  if ('mediaSession' in navigator) {
+    try { navigator.mediaSession.setActionHandler('enterpictureinpicture', () => { open() }) } catch { /* unsupported */ }
+    try { navigator.mediaSession.setActionHandler('play', () => store.resumeTimer()) } catch { /* unsupported */ }
+    try { navigator.mediaSession.setActionHandler('pause', () => store.pauseTimer()) } catch { /* unsupported */ }
+  }
+
+  return { supported, active, toggle, ambienceEnabled, toggleAmbience }
 }

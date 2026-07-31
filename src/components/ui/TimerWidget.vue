@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 import { useTimerPip } from '@/composables/useTimerPip'
-import { ICON_MAP, CheckIcon, PlayIcon, PauseIcon, PipIcon } from '@/components/icons/AppIcons'
+import { ICON_MAP, CheckIcon, PlayIcon, PauseIcon, PipIcon, SpeakerIcon, SpeakerMuteIcon } from '@/components/icons/AppIcons'
 
 const store = useFluiserStore()
 const t     = useT()
@@ -221,6 +221,17 @@ const widgetStyle = computed(() =>
             <PlayIcon  v-else         :size="13" />
           </button>
         </template>
+
+        <!-- Ambient focus sound (also unlocks Chrome's auto-float-on-tab-switch) -->
+        <button
+          class="tw-btn"
+          :class="{ 'tw-btn-active': pip.ambienceEnabled }"
+          @click.stop="pip.toggleAmbience"
+          :title="t('Sonido ambiente', 'Ambient sound')"
+        >
+          <SpeakerIcon v-if="pip.ambienceEnabled" :size="13" />
+          <SpeakerMuteIcon v-else :size="13" />
+        </button>
 
         <!-- Pop out into a floating always-on-top window -->
         <button

@@ -187,6 +187,17 @@ export const PipIcon = mkIcon(() => [
   h('rect', { x: '12.5', y: '11', width: '7', height: '5', rx: '1', fill: 'currentColor', stroke: 'none' }),
 ])
 
+export const SpeakerIcon = mkIcon(() => [
+  h('path', { d: 'M4 9v6h4l5 4V5L8 9H4z' }),
+  h('path', { d: 'M16.5 8.5a5 5 0 0 1 0 7' }),
+  h('path', { d: 'M19 6a8 8 0 0 1 0 12' }),
+])
+
+export const SpeakerMuteIcon = mkIcon(() => [
+  h('path', { d: 'M4 9v6h4l5 4V5L8 9H4z' }),
+  h('path', { d: 'M16 9l5 6M21 9l-5 6' }),
+])
+
 export const ICON_MAP: Record<string, ReturnType<typeof mkIcon>> = {
   Home: HomeIcon, Timeline: TimelineIcon, Habits: HabitsIcon, Heatmap: HeatmapIcon,
   Journal: JournalIcon, Analytics: AnalyticsIcon, Focus: FocusIcon,
