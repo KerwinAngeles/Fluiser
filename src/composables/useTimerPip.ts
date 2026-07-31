@@ -1,4 +1,4 @@
-import { ref, watch, watchEffect } from 'vue'
+import { ref, watch, watchEffect, onMounted, onUnmounted } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 
@@ -231,6 +231,22 @@ export function useTimerPip() {
     if (active.value) close()
     else await open()
   }
+
+  // Chrome's "automatic" PiP-on-tab-switch (via the Media Session handler
+  // below) only fires for pages it already trusts with a high Media
+  // Engagement Index — brand-new/low-traffic origins usually don't qualify,
+  // even with audible media playing. As a more reliable fallback, try to pop
+  // the window ourselves the moment the tab is hidden: Document PiP only
+  // needs a *recent* user gesture (transient activation lasts a few seconds
+  // in Chromium), and switching tabs almost always follows some click/tap on
+  // the page (pause, drag, expand…), so this succeeds far more often in
+  // practice than waiting on the browser's own heuristic.
+  function onVisibilityChange() {
+    if (!document.hidden || !supported || active.value || !store.activeTimer) return
+    open().catch(() => { /* no transient activation left — user didn't touch the page recently enough */ })
+  }
+  onMounted(() => document.addEventListener('visibilitychange', onVisibilityChange))
+  onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityChange))
 
   function toggleAmbience() {
     ambienceEnabled.value = !ambienceEnabled.value
