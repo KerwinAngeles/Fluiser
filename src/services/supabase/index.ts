@@ -26,6 +26,7 @@ export async function loadUserData(userId: string): Promise<UserData> {
     freq: r.freq,
     timer: r.timer,
     createdAt: r.created_at,
+    active: r.active ?? true,
   }))
 
   const completions: Record<string, Completion> = {}
@@ -58,13 +59,9 @@ export async function upsertHabit(userId: string, habit: Habit): Promise<void> {
     freq: habit.freq,
     timer: habit.timer,
     created_at: habit.createdAt,
+    active: habit.active,
   })
   if (error) console.error('upsertHabit', error)
-}
-
-export async function deleteHabit(userId: string, habitId: string): Promise<void> {
-  const { error } = await supabase.from('habits').delete().eq('user_id', userId).eq('id', habitId)
-  if (error) console.error('deleteHabit', error)
 }
 
 export async function upsertCompletion(userId: string, key: string, completion: Completion): Promise<void> {

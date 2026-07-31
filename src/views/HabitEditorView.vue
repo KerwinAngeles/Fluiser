@@ -41,9 +41,10 @@ const timerEnabled = ref(false)
 const timerDuration = ref(25)
 const timerSessions = ref(1)
 const timerBreak = ref(5)
+const active = ref(true)
 const loaded = ref(false)
 
-function seedFrom(h: { name: string; category: CategoryId; icon: HabitIcon; tone: Tone; time: string; freq: string; timer: HabitTimer }) {
+function seedFrom(h: { name: string; category: CategoryId; icon: HabitIcon; tone: Tone; time: string; freq: string; timer: HabitTimer; active?: boolean }) {
   name.value = h.name
   category.value = h.category
   icon.value = h.icon
@@ -54,6 +55,7 @@ function seedFrom(h: { name: string; category: CategoryId; icon: HabitIcon; tone
   timerDuration.value = h.timer?.duration ?? 25
   timerSessions.value = h.timer?.sessions ?? 1
   timerBreak.value = h.timer?.breakDuration ?? 5
+  active.value = h.active ?? true
   loaded.value = true
 }
 
@@ -61,6 +63,7 @@ if (isNewHabit) {
   seedFrom({
     name: '', category: 'mente', icon: 'Brain', tone: 'sky', time: '', freq: 'daily',
     timer: { enabled: false, duration: 25, sessions: 1, breakDuration: 5 },
+    active: true,
   })
 } else {
   watch(
@@ -171,13 +174,19 @@ function save() {
     time: time.value,
     freq: freq.value,
     timer: { enabled: timerEnabled.value, duration: timerDuration.value, sessions: timerSessions.value, breakDuration: timerBreak.value },
+    active: active.value,
   })
   router.push('/habits')
 }
 
-function deleteHabit() {
-  if (window.confirm(t('¿Eliminar este hábito?', 'Delete this habit?'))) {
-    store.deleteHabit(habitId)
+function toggleActive() {
+  const willActivate = !active.value
+  const msg = willActivate
+    ? t('¿Reactivar este hábito?', 'Reactivate this habit?')
+    : t('¿Inactivar este hábito? No aparecerá en tus listas, pero conservas su historial.', 'Deactivate this habit? It will stop appearing in your lists, but its history is kept.')
+  if (window.confirm(msg)) {
+    active.value = willActivate
+    store.setHabitActive(habitId, willActivate)
     router.push('/habits')
   }
 }
@@ -370,8 +379,13 @@ function deleteHabit() {
 
     <!-- Footer -->
     <div class="heb-foot">
-      <button v-if="!isNewHabit" class="btn btn-ghost" style="color: var(--rose);" @click="deleteHabit">
-        {{ t('Eliminar hábito', 'Delete habit') }}
+      <button
+        v-if="!isNewHabit"
+        class="btn btn-ghost"
+        :style="{ color: active ? 'var(--rose)' : 'var(--mint)' }"
+        @click="toggleActive"
+      >
+        {{ active ? t('Inactivar hábito', 'Deactivate habit') : t('Reactivar hábito', 'Reactivate habit') }}
       </button>
       <span v-else />
       <div class="row">

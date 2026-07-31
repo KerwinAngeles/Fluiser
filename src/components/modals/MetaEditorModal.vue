@@ -210,11 +210,11 @@ function deleteMeta() {
       </div>
 
       <!-- Linked habits -->
-      <div v-if="store.data.habits.length > 0" style="margin-bottom: 24px;">
+      <div v-if="store.activeHabits.length > 0" style="margin-bottom: 24px;">
         <div class="card-title" style="margin-bottom: 8px;">{{ t('Hábitos que alimentan esta meta', 'Habits that feed this goal') }}</div>
         <div style="display: flex; flex-direction: column; gap: 6px;">
           <label
-            v-for="h in store.data.habits" :key="h.id"
+            v-for="h in store.activeHabits" :key="h.id"
             style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 8px 10px; border-radius: 10px; transition: background 160ms;"
             :style="{ background: habitIds.includes(h.id) ? `var(--${h.tone}-soft)` : 'var(--bg-elevated)' }"
           >

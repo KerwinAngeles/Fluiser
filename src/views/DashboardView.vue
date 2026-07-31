@@ -24,7 +24,7 @@ const { today, hour } = useToday()
 const todayDate = computed(() => new Date(today.value + 'T00:00:00'))
 const due = computed(() => store.dueToday)
 const notDueToday = computed(() =>
-  store.data.habits.filter((h) => !due.value.find((d) => d.id === h.id))
+  store.activeHabits.filter((h) => !due.value.find((d) => d.id === h.id))
 )
 const progress = computed(() => store.todayProgress)
 const morning = computed(() => store.data.checkins[`${today.value}|morning`] as MorningCheckin | undefined)
@@ -33,7 +33,7 @@ const evening = computed(() => store.data.checkins[`${today.value}|evening`] as 
 const phrase = computed(() => getDashboardPhrase({ hour: hour.value, pct: progress.value.pct, lang: lang.value }))
 
 const topStreaks = computed(() =>
-  store.data.habits
+  store.activeHabits
     .map((h) => ({ h, s: store.streakOf(h.id) }))
     .filter((x) => x.s.current > 0)
     .sort((a, b) => b.s.current - a.s.current)

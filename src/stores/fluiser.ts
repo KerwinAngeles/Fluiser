@@ -145,7 +145,8 @@ export const useFluiserStore = defineStore('fluiser', () => {
       if (Date.now() >= s.endAt) return { ...s, phase: 'review', remaining: 0, endAt: null }
       return { ...s, remaining: Math.max(0, Math.ceil((s.endAt - Date.now()) / 1000)) }
     }
-    let { phase, currentSession, workSec, breakSec, sessions, endAt } = s
+    let phase = s.phase as TimerState['phase']
+    let { currentSession, workSec, breakSec, sessions, endAt } = s
     const now = Date.now()
     while (now >= endAt && phase !== 'review') {
       if (phase === 'work') {
@@ -158,6 +159,9 @@ export const useFluiserStore = defineStore('fluiser', () => {
     return { ...s, phase, currentSession, remaining: Math.max(0, Math.ceil((endAt - now) / 1000)), endAt }
   }
 
+
+
+  
   function restoreTimerFromStorage() {
     try {
       const raw = localStorage.getItem(TIMER_STORAGE_KEY)
@@ -212,6 +216,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
             freq: 'daily',
             timer: { enabled: true, duration: 600, sessions: 1, breakDuration: 0 },
             createdAt: ymd(addDays(todayVal, -30)),
+            active: true,
           },
           {
             id: 'demo-water',
@@ -223,6 +228,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
             freq: 'daily',
             timer: { enabled: false, duration: 0, sessions: 1, breakDuration: 0 },
             createdAt: ymd(addDays(todayVal, -30)),
+            active: true,
           },
           {
             id: 'demo-write',
@@ -234,6 +240,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
             freq: 'daily',
             timer: { enabled: true, duration: 1200, sessions: 1, breakDuration: 0 },
             createdAt: ymd(addDays(todayVal, -30)),
+            active: true,
           },
           {
             id: 'demo-walk',
@@ -245,6 +252,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
             freq: 'daily',
             timer: { enabled: false, duration: 0, sessions: 1, breakDuration: 0 },
             createdAt: ymd(addDays(todayVal, -30)),
+            active: true,
           },
         ]
 
@@ -436,19 +444,8 @@ export const useFluiserStore = defineStore('fluiser', () => {
     if (habit) await db.upsertHabit(user.id, habit)
   }
 
-  async function deleteHabit(id: string) {
-    // Local update first — habit removed from UI immediately
-    update((d) => {
-      d.habits = d.habits.filter((h) => h.id !== id)
-      for (const k of Object.keys(d.completions)) {
-        if (k.startsWith(id + '|')) delete d.completions[k]
-      }
-    })
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    await db.deleteHabit(user.id, id)
-    const { error } = await supabase.from('completions').delete().eq('user_id', user.id).eq('habit_id', id)
-    if (error) console.error('deleteHabitCompletions', error)
+  async function setHabitActive(id: string, active: boolean) {
+    await upsertHabit({ id, active })
   }
 
   async function writeJournal(date: string, entry: Partial<JournalEntry> | null) {
@@ -598,9 +595,11 @@ export const useFluiserStore = defineStore('fluiser', () => {
   function minimizeTimer() { timerMinimized.value = true }
   function expandTimer() { timerMinimized.value = false }
 
+  const activeHabits = computed((): Habit[] => data.value.habits.filter((h) => h.active !== false))
+
   const dueToday = computed((): Habit[] => {
     const now = new Date(todayRef.value + 'T00:00:00')
-    return data.value.habits.filter((h) => isHabitDue(h, now))
+    return activeHabits.value.filter((h) => isHabitDue(h, now))
   })
 
   const todayProgress = computed(() => {
@@ -717,7 +716,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
     data, activeTimer, timerState, timerMinimized, loading,
     update, isDone, completion,
     toggleHabit, setEnergy, setNote,
-    upsertHabit, deleteHabit,
+    upsertHabit, setHabitActive,
     writeJournal, writeCheckin, writeSettings,
     setFocus, startTimer, stopTimer,
     pauseTimer, resumeTimer, skipTimerSession, finishTimerNow, continueFlow,
@@ -725,7 +724,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
     upsertMeta, deleteMeta,
     upsertVisionItem, deleteVisionItem,
     saveWeeklyReview, habitLinkedMetas,
-    dueToday, todayProgress,
+    activeHabits, dueToday, todayProgress,
     streakOf, heatmapData,
     reset, init,
     utils: { ymd, today, addDays, daysBetween, startOfWeek },

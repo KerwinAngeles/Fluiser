@@ -22,6 +22,7 @@ export interface Habit {
   freq: FreqPreset
   timer: HabitTimer
   createdAt: string
+  active: boolean
 }
 
 export interface Completion {

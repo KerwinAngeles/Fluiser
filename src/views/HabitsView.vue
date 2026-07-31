@@ -17,9 +17,15 @@ const { lang } = useTheme()
 const { today } = useToday()
 
 const filter = ref<CategoryId | 'all'>('all')
+const showInactive = ref(false)
+
+const inactiveCount = computed(() => store.data.habits.filter((h) => h.active === false).length)
 
 const filtered = computed(() =>
-  store.data.habits.filter((h) => filter.value === 'all' || h.category === filter.value)
+  store.data.habits.filter((h) =>
+    (showInactive.value ? h.active === false : h.active !== false) &&
+    (filter.value === 'all' || h.category === filter.value)
+  )
 )
 
 function openNew() {
@@ -71,7 +77,7 @@ const habitSummaries = computed(() =>
       <div>
         <div class="screen-eyebrow">{{ t('Tu jardín', 'Your garden') }}</div>
         <h1 class="screen-title">{{ t('Hábitos', 'Habits') }}</h1>
-        <div class="screen-sub">{{ t(`${store.data.habits.length} cultivándose`, `${store.data.habits.length} growing`) }}</div>
+        <div class="screen-sub">{{ t(`${store.activeHabits.length} cultivándose`, `${store.activeHabits.length} growing`) }}</div>
       </div>
       <button class="btn btn-primary" @click="openNew">
         <PlusIcon :size="13" /> {{ t('Nuevo hábito', 'New habit') }}
@@ -92,6 +98,13 @@ const habitSummaries = computed(() =>
         :style="filter === c.id ? { background: `var(--${c.tone}-soft)`, color: `var(--${c.tone})` } : {}"
         @click="filter = c.id"
       >{{ c.label }}</button>
+      <button
+        v-if="inactiveCount > 0"
+        class="pill cursor-pointer transition-colors px-3 py-1.5 font-medium ml-auto"
+        :class="showInactive ? 'border border-transparent' : 'bg-border-subtle text-text-2 border border-transparent hover:text-text-1'"
+        :style="showInactive ? { background: 'var(--rose-soft)', color: 'var(--rose)' } : {}"
+        @click="showInactive = !showInactive"
+      >{{ t(`Inactivos (${inactiveCount})`, `Inactive (${inactiveCount})`) }}</button>
     </div>
 
     <!-- Habit cards -->
@@ -99,6 +112,7 @@ const habitSummaries = computed(() =>
       <div
         v-for="s in habitSummaries" :key="s.habit.id"
         class="habit-card"
+        :class="{ 'habit-card--inactive': s.habit.active === false }"
         :style="{ '--tone': `var(--${s.habit.tone})`, '--tone-soft': `var(--${s.habit.tone}-soft)` }"
         @click="openEdit(s.habit)"
       >
@@ -116,7 +130,8 @@ const habitSummaries = computed(() =>
               <template v-if="s.habit.timer?.enabled"> · {{ s.habit.timer.sessions }}×{{ s.habit.timer.duration }}min</template>
             </div>
           </div>
-          <div v-if="s.doneToday" class="hc-done-chip">✓ {{ t('Hecho', 'Done') }}</div>
+          <div v-if="s.habit.active === false" class="hc-inactive-chip">{{ t('Inactivo', 'Inactive') }}</div>
+          <div v-else-if="s.doneToday" class="hc-done-chip">✓ {{ t('Hecho', 'Done') }}</div>
         </div>
 
         <!-- Stats strip -->
@@ -166,7 +181,9 @@ const habitSummaries = computed(() =>
       </div>
 
       <div v-if="habitSummaries.length === 0" key="__empty" class="py-12 text-center italic text-sm text-text-3">
-        {{ t('Ningún hábito en esta categoría todavía.', 'No habits in this category yet.') }}
+        {{ showInactive
+          ? t('No tienes hábitos inactivos.', 'You have no inactive habits.')
+          : t('Ningún hábito en esta categoría todavía.', 'No habits in this category yet.') }}
       </div>
     </TransitionGroup>
   </div>
@@ -184,6 +201,18 @@ const habitSummaries = computed(() =>
   transition: background 160ms ease, border-color 160ms ease;
 }
 .habit-card:hover { background: var(--bg-elevated); }
+.habit-card--inactive { opacity: 0.6; border-left-color: var(--border-default); }
+
+.hc-inactive-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--rose-soft);
+  color: var(--rose);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 
 /* ── Header ── */
 .hc-header {
