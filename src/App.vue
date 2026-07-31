@@ -31,6 +31,19 @@ watch(() => authStore.user, async (user, prev) => {
   }
 }, { immediate: false })
 
+// Spotify-style mini player: auto-collapse the full-screen timer to the
+// floating corner widget whenever the user leaves the current screen —
+// either by navigating to another route or by switching tabs/apps.
+watch(() => router.currentRoute.value.path, () => {
+  if (store.activeTimer && !store.timerMinimized) store.minimizeTimer()
+})
+
+function onVisibilityChange() {
+  if (document.hidden && store.activeTimer && !store.timerMinimized) store.minimizeTimer()
+}
+onMounted(() => document.addEventListener('visibilitychange', onVisibilityChange))
+onUnmounted(() => document.removeEventListener('visibilitychange', onVisibilityChange))
+
 function onKey(e: KeyboardEvent) {
   const tag = (e.target as HTMLElement).tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
