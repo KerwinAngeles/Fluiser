@@ -75,6 +75,13 @@ Deno.serve(async (req) => {
     subsByUser.set(sub.user_id, list)
   }
 
+  // Log every notification to the in-app feed regardless of push delivery
+  // outcome, so the bell icon reflects reminders even if the push itself
+  // failed (denied permission, stale subscription, offline device, etc.)
+  await supabaseAdmin.from('notifications').insert(
+    notifications.map((n) => ({ user_id: n.user_id, title: n.title, body: n.body, url: n.url ?? null })),
+  )
+
   const results = { sent: 0, failed: 0, removedStale: 0 }
 
   await Promise.all(

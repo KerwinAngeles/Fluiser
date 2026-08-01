@@ -11,6 +11,7 @@ import {
   HomeIcon, HabitsIcon, HeatmapIcon,
   GoalsIcon, FocusIcon, TimelineIcon, SettingsIcon, SunIcon, MoonIcon,
 } from '@/components/icons/AppIcons'
+import NotificationBell from '@/components/layout/NotificationBell.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -109,6 +110,9 @@ function isActive(id: string) {
         <div class="avatar">{{ avatarLetter }}</div>
         <span class="user-name">{{ userName || userEmail }}</span>
       </div>
+
+      <!-- Notifications -->
+      <NotificationBell />
 
       <!-- Settings -->
       <button

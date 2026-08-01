@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { Habit, Completion, JournalEntry, Checkin, Meta, VisionItem, WeeklyReview, NotificationPreferences } from '@/types'
+import type { Habit, Completion, JournalEntry, Checkin, Meta, VisionItem, WeeklyReview, NotificationPreferences, AppNotification } from '@/types'
 
 export interface UserData {
   habits: Habit[]
@@ -262,4 +262,39 @@ export async function upsertNotificationPreferences(userId: string, prefs: Notif
     updated_at: new Date().toISOString(),
   })
   if (error) console.error('upsertNotificationPreferences', error)
+}
+
+export async function loadNotifications(userId: string, limit = 30): Promise<AppNotification[]> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) {
+    console.error('loadNotifications', error)
+    return []
+  }
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    title: r.title,
+    body: r.body,
+    url: r.url ?? undefined,
+    read: r.read,
+    createdAt: r.created_at,
+  }))
+}
+
+export async function markNotificationRead(userId: string, id: string): Promise<void> {
+  const { error } = await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('id', id)
+  if (error) console.error('markNotificationRead', error)
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('notifications')
+    .update({ read: true })
+    .eq('user_id', userId)
+    .eq('read', false)
+  if (error) console.error('markAllNotificationsRead', error)
 }

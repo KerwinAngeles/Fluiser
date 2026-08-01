@@ -182,6 +182,11 @@ export const AlertTriangleIcon = mkIcon(() => [
   h('circle', { cx: '12', cy: '17.2', r: '0.9', fill: 'currentColor', stroke: 'none' }),
 ])
 
+export const BellIcon = mkIcon(() => [
+  h('path', { d: 'M6 8a6 6 0 1 1 12 0c0 3.6 1 5.4 1.6 6.2.3.4 0 1-.5 1H4.9c-.5 0-.8-.6-.5-1C5 13.4 6 11.6 6 8z' }),
+  h('path', { d: 'M9.5 19a2.5 2.5 0 0 0 5 0' }),
+])
+
 export const PipIcon = mkIcon(() => [
   h('rect', { x: '3', y: '5', width: '18', height: '14', rx: '2' }),
   h('rect', { x: '12.5', y: '11', width: '7', height: '5', rx: '1', fill: 'currentColor', stroke: 'none' }),
