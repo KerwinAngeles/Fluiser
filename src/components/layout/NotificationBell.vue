@@ -13,10 +13,19 @@ const lang = useLang()
 const { items, unreadCount, markRead, markAllRead } = useNotifications()
 
 const open = ref(false)
-const rootEl = ref<HTMLElement | null>(null)
+const triggerEl = ref<HTMLButtonElement | null>(null)
+const panelEl = ref<HTMLElement | null>(null)
+const panelStyle = ref<{ top: string; right: string }>({ top: '0px', right: '0px' })
+
+function updatePosition() {
+  if (!triggerEl.value) return
+  const r = triggerEl.value.getBoundingClientRect()
+  panelStyle.value = { top: `${r.bottom + 10}px`, right: `${window.innerWidth - r.right}px` }
+}
 
 function toggle() {
   open.value = !open.value
+  if (open.value) updatePosition()
 }
 
 async function onItemClick(n: AppNotification) {
@@ -26,7 +35,11 @@ async function onItemClick(n: AppNotification) {
 }
 
 function onClickOutside(e: MouseEvent) {
-  if (open.value && rootEl.value && !rootEl.value.contains(e.target as Node)) open.value = false
+  if (!open.value) return
+  const target = e.target as Node
+  if (triggerEl.value?.contains(target)) return
+  if (panelEl.value?.contains(target)) return
+  open.value = false
 }
 
 function onKey(e: KeyboardEvent) {
@@ -36,16 +49,19 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => {
   document.addEventListener('click', onClickOutside, true)
   document.addEventListener('keydown', onKey)
+  window.addEventListener('resize', updatePosition)
 })
 onUnmounted(() => {
   document.removeEventListener('click', onClickOutside, true)
   document.removeEventListener('keydown', onKey)
+  window.removeEventListener('resize', updatePosition)
 })
 </script>
 
 <template>
-  <div class="nb-root" ref="rootEl">
+  <div class="nb-root">
     <button
+      ref="triggerEl"
       class="settings-btn nb-trigger"
       :class="{ 'nb-open': open }"
       :title="t('Notificaciones', 'Notifications')"
@@ -55,37 +71,39 @@ onUnmounted(() => {
       <span v-if="unreadCount > 0" class="nb-badge">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
     </button>
 
-    <Transition name="nb-panel">
-      <div v-if="open" class="nb-panel">
-        <div class="nb-header">
-          <span class="nb-title">{{ t('Notificaciones', 'Notifications') }}</span>
-          <button v-if="unreadCount > 0" class="nb-mark-all" @click="markAllRead">
-            {{ t('Marcar todas como leídas', 'Mark all as read') }}
-          </button>
-        </div>
+    <Teleport to="body">
+      <Transition name="nb-panel">
+        <div v-if="open" ref="panelEl" class="nb-panel" :style="panelStyle">
+          <div class="nb-header">
+            <span class="nb-title">{{ t('Notificaciones', 'Notifications') }}</span>
+            <button v-if="unreadCount > 0" class="nb-mark-all" @click="markAllRead">
+              {{ t('Marcar todas como leídas', 'Mark all as read') }}
+            </button>
+          </div>
 
-        <div v-if="items.length === 0" class="nb-empty">
-          <BellIcon :size="22" />
-          <p>{{ t('No tienes notificaciones', "You're all caught up") }}</p>
-        </div>
+          <div v-if="items.length === 0" class="nb-empty">
+            <BellIcon :size="22" />
+            <p>{{ t('No tienes notificaciones', "You're all caught up") }}</p>
+          </div>
 
-        <div v-else class="nb-list">
-          <button
-            v-for="n in items" :key="n.id"
-            class="nb-item"
-            :class="{ unread: !n.read }"
-            @click="onItemClick(n)"
-          >
-            <span class="nb-dot" />
-            <span class="nb-body">
-              <span class="nb-item-title">{{ n.title }}</span>
-              <span class="nb-item-text">{{ n.body }}</span>
-              <span class="nb-item-time">{{ timeAgo(n.createdAt, lang) }}</span>
-            </span>
-          </button>
+          <div v-else class="nb-list">
+            <button
+              v-for="n in items" :key="n.id"
+              class="nb-item"
+              :class="{ unread: !n.read }"
+              @click="onItemClick(n)"
+            >
+              <span class="nb-dot" />
+              <span class="nb-body">
+                <span class="nb-item-title">{{ n.title }}</span>
+                <span class="nb-item-text">{{ n.body }}</span>
+                <span class="nb-item-time">{{ timeAgo(n.createdAt, lang) }}</span>
+              </span>
+            </button>
+          </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -113,9 +131,7 @@ onUnmounted(() => {
 }
 
 .nb-panel {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
+  position: fixed;
   width: min(340px, 88vw);
   max-height: min(420px, 70vh);
   display: flex;
@@ -125,7 +141,7 @@ onUnmounted(() => {
   border-radius: 16px;
   box-shadow: 0 24px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04) inset;
   overflow: hidden;
-  z-index: 60;
+  z-index: 200;
 }
 
 .nb-header {
