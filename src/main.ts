@@ -5,6 +5,9 @@ import router from './router'
 import './assets/main.css'
 import { useAuthStore } from '@/stores/auth'
 import { SpeedInsights } from '@vercel/speed-insights/vue'
+import { registerSW } from 'virtual:pwa-register'
+
+registerSW({ immediate: true })
 
 const app = createApp(App)
 const pinia = createPinia()

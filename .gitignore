@@ -4,6 +4,7 @@ node_modules/
 # Build output
 dist/
 dist-ssr/
+dev-dist/
 
 # Environment
 .env
@@ -26,3 +27,6 @@ Thumbs.db
 # TypeScript
 *.tsbuildinfo
 node_modules/.tmp/
+
+# Supabase CLI local state
+supabase/.temp/
