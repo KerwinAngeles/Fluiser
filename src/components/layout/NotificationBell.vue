@@ -47,7 +47,7 @@ onUnmounted(() => {
   <div class="nb-root" ref="rootEl">
     <button
       class="settings-btn nb-trigger"
-      :class="{ active: open }"
+      :class="{ 'nb-open': open }"
       :title="t('Notificaciones', 'Notifications')"
       @click="toggle"
     >
@@ -93,6 +93,7 @@ onUnmounted(() => {
 .nb-root { position: relative; }
 
 .nb-trigger { position: relative; }
+.nb-trigger.nb-open { background: var(--border-subtle); color: var(--text-1); }
 
 .nb-badge {
   position: absolute;
