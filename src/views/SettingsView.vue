@@ -2,11 +2,15 @@
 import { useTheme } from '@/composables/useTheme'
 import { useT } from '@/composables/useLang'
 import { useFluiserStore } from '@/stores/fluiser'
+import { usePushNotifications } from '@/composables/usePushNotifications'
 import type { BgEffect, AccentColor } from '@/composables/useTheme'
 
 const { dark, lang, heatmap, density, typeSize, bg, accent, reduceMotion } = useTheme()
 const t = useT()
 const store = useFluiserStore()
+
+const isDemoMode = localStorage.getItem('fluiser_demo_mode') === 'true'
+const { isSupported: pushSupported, subscribed: remindersOn, loading: remindersLoading, error: remindersError, toggle: toggleReminders } = usePushNotifications()
 
 const bgOptions: { id: BgEffect; label: [string, string]; preview: string }[] = [
   {
@@ -178,6 +182,25 @@ function exportData() {
           </div>
         </div>
 
+        <!-- Notificaciones -->
+        <div class="sp-card">
+          <div class="sp-card-title">{{ t('Notificaciones', 'Notifications') }}</div>
+          <div class="sp-row" style="margin-bottom:0">
+            <span class="sp-row-label">{{ t('Recordatorios', 'Reminders') }}</span>
+            <button
+              class="sp-switch"
+              :class="{ on: remindersOn }"
+              :disabled="!pushSupported || isDemoMode || remindersLoading"
+              @click="toggleReminders(!remindersOn)"
+            >
+              <span class="sp-switch-thumb" />
+            </button>
+          </div>
+          <p v-if="isDemoMode" class="sp-hint">{{ t('No disponible en modo demo.', 'Not available in demo mode.') }}</p>
+          <p v-else-if="!pushSupported" class="sp-hint">{{ t('Tu navegador no soporta notificaciones push.', 'Your browser does not support push notifications.') }}</p>
+          <p v-else-if="remindersError" class="sp-hint sp-hint-error">{{ remindersError }}</p>
+        </div>
+
         <!-- Datos -->
         <div class="sp-card">
           <div class="sp-card-title">{{ t('Datos', 'Data') }}</div>
@@ -258,6 +281,9 @@ function exportData() {
 }
 .sp-row-label { font-size: 13px; color: var(--text-2); }
 
+.sp-hint { font-size: 11.5px; color: var(--text-3); margin: 8px 0 0; }
+.sp-hint-error { color: var(--rose); }
+
 /* ── Toggle group ── */
 .sp-toggle-group { display: flex; gap: 4px; flex-wrap: wrap; }
 .sp-tog {
@@ -291,6 +317,7 @@ function exportData() {
   flex-shrink: 0;
 }
 .sp-switch.on { background: var(--accent); }
+.sp-switch:disabled { opacity: 0.5; cursor: not-allowed; }
 .sp-switch-thumb {
   position: absolute;
   top: 3px; left: 3px;

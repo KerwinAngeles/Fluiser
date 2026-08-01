@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import type { Habit, Completion, JournalEntry, Checkin, Meta, VisionItem, WeeklyReview } from '@/types'
+import type { Habit, Completion, JournalEntry, Checkin, Meta, VisionItem, WeeklyReview, NotificationPreferences } from '@/types'
 
 export interface UserData {
   habits: Habit[]
@@ -210,4 +210,56 @@ export async function upsertWeeklyReview(userId: string, review: WeeklyReview): 
     ts: review.ts,
   })
   if (error) console.error('upsertWeeklyReview', error)
+}
+
+export interface PushSubscriptionKeys {
+  endpoint: string
+  p256dh: string
+  authKey: string
+}
+
+export async function savePushSubscription(userId: string, sub: PushSubscriptionKeys): Promise<void> {
+  const { error } = await supabase.from('push_subscriptions').upsert({
+    user_id: userId,
+    endpoint: sub.endpoint,
+    p256dh: sub.p256dh,
+    auth_key: sub.authKey,
+  })
+  if (error) console.error('savePushSubscription', error)
+}
+
+export async function deletePushSubscription(endpoint: string): Promise<void> {
+  const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint)
+  if (error) console.error('deletePushSubscription', error)
+}
+
+export async function loadNotificationPreferences(userId: string): Promise<NotificationPreferences | null> {
+  const { data, error } = await supabase
+    .from('notification_preferences')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (error) {
+    console.error('loadNotificationPreferences', error)
+    return null
+  }
+  if (!data) return null
+  return {
+    timezone: data.timezone,
+    habitRemindersEnabled: data.habit_reminders_enabled,
+    checkinMorningTime: data.checkin_morning_time ?? undefined,
+    checkinEveningTime: data.checkin_evening_time ?? undefined,
+  }
+}
+
+export async function upsertNotificationPreferences(userId: string, prefs: NotificationPreferences): Promise<void> {
+  const { error } = await supabase.from('notification_preferences').upsert({
+    user_id: userId,
+    timezone: prefs.timezone,
+    habit_reminders_enabled: prefs.habitRemindersEnabled,
+    checkin_morning_time: prefs.checkinMorningTime ?? null,
+    checkin_evening_time: prefs.checkinEveningTime ?? null,
+    updated_at: new Date().toISOString(),
+  })
+  if (error) console.error('upsertNotificationPreferences', error)
 }

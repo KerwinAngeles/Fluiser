@@ -98,6 +98,13 @@ export interface WeeklyReview {
   ts: number
 }
 
+export interface NotificationPreferences {
+  timezone: string
+  habitRemindersEnabled: boolean
+  checkinMorningTime?: string
+  checkinEveningTime?: string
+}
+
 export interface StoreData {
   habits: Habit[]
   completions: Record<string, Completion>
