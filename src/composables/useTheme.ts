@@ -2,7 +2,7 @@ import { ref, watch } from 'vue'
 
 const LS_KEY = 'fluiser.theme'
 
-export type BgEffect = 'ambient' | 'fireflies' | 'stars' | 'aurora' | 'none' | 'aurora-boreal' | 'cosmos' | 'zen' | 'terrario' | 'watercolor' | 'geometry'
+export type BgEffect = 'ambient' | 'fireflies' | 'stars' | 'aurora' | 'none' | 'aurora-boreal' | 'cosmos' | 'zen' | 'terrario' | 'watercolor' | 'geometry' | 'code' | 'gym' | 'focus'
 export type AccentColor = 'sky' | 'lilac' | 'mint' | 'rose' | 'amber'
 
 interface ThemeSettings {

@@ -113,6 +113,30 @@ const geoCircles = [
 const geoSpokes = angles6.flatMap(a => [
   { x1: CX, y1: CY, x2: CX + 4*R*Math.cos(a), y2: CY + 4*R*Math.sin(a) }
 ])
+
+// ── Código (programming) ───────────────────────────────────────────
+const CODE_CHARS = '01{}<>/;=+-*#[]().'.split('')
+const codeGlyphs = Array.from({ length: 60 }, (_, i) => ({
+  id: i,
+  left:  Math.random() * 100,
+  char:  CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)],
+  size:  10 + Math.random() * 6,
+  dur:   7 + Math.random() * 11,
+  delay: -(Math.random() * 16),
+  op:    0.35 + Math.random() * 0.45,
+}))
+
+// ── Gym (fitness) ─────────────────────────────────────────────────
+const pulseRings = [0, 1, 2].map((i) => ({ id: i, delay: i * 1.6 }))
+const barbells = Array.from({ length: 5 }, (_, i) => ({
+  id: i,
+  left:   Math.random() * 100,
+  top:    Math.random() * 100,
+  rotate: Math.random() * 360,
+  scale:  0.7 + Math.random() * 0.6,
+  dur:    12 + Math.random() * 10,
+  delay:  -(Math.random() * 16),
+}))
 </script>
 
 <template>
@@ -274,6 +298,60 @@ const geoSpokes = angles6.flatMap(a => [
       </svg>
     </div>
     <div class="geo-pulse" :style="{ animationPlayState: ap('running') }" />
+  </div>
+
+  <!-- ── Código ── -->
+  <div v-else-if="bg === 'code'" class="bg-layer bg-code">
+    <span
+      v-for="g in codeGlyphs" :key="g.id"
+      class="code-glyph"
+      :style="{
+        left: g.left + '%',
+        fontSize: g.size + 'px',
+        '--dur': g.dur + 's', '--delay': g.delay + 's', '--max-op': g.op,
+        animationPlayState: ap('running'),
+      }"
+    >{{ g.char }}</span>
+    <div class="code-scanline" :style="{ animationPlayState: ap('running') }" />
+  </div>
+
+  <!-- ── Gym ── -->
+  <div v-else-if="bg === 'gym'" class="bg-layer bg-gym">
+    <div class="gym-glow" :style="{ animationPlayState: ap('running') }" />
+    <div
+      v-for="r in pulseRings" :key="r.id"
+      class="gym-ring"
+      :style="{ '--delay': r.delay + 's', animationPlayState: ap('running') }"
+    />
+    <svg class="gym-ekg" viewBox="0 0 400 60" preserveAspectRatio="none">
+      <polyline
+        class="gym-ekg-line"
+        points="0,30 40,30 55,10 70,50 85,30 130,30 145,15 160,45 175,30 400,30"
+        fill="none" stroke="rgba(232,155,90,.65)" stroke-width="2"
+        :style="{ animationPlayState: ap('running') }"
+      />
+    </svg>
+    <div
+      v-for="b in barbells" :key="b.id"
+      class="gym-barbell"
+      :style="{
+        left: b.left + '%', top: b.top + '%',
+        '--rot': b.rotate + 'deg', '--scale': b.scale,
+        '--dur': b.dur + 's', '--delay': b.delay + 's',
+        animationPlayState: ap('running'),
+      }"
+    >
+      <span class="gym-plate" /><span class="gym-bar" /><span class="gym-plate" />
+    </div>
+  </div>
+
+  <!-- ── Enfoque ── -->
+  <div v-else-if="bg === 'focus'" class="bg-layer bg-focus">
+    <div class="focus-vignette" />
+    <div class="focus-glow" :style="{ animationPlayState: ap('running') }" />
+    <div class="focus-ring focus-ring-1" :style="{ animationPlayState: ap('running') }" />
+    <div class="focus-ring focus-ring-2" :style="{ animationPlayState: ap('running') }" />
+    <div class="focus-dot" />
   </div>
 
   <!-- ── None ── renders nothing -->
@@ -533,5 +611,135 @@ const geoSpokes = angles6.flatMap(a => [
 @keyframes geo-breathe {
   from { opacity: 0.5; }
   to   { opacity: 1; }
+}
+
+/* ── Código ── */
+.bg-code { background: #050807; }
+.code-glyph {
+  position: absolute;
+  top: -8%;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  color: rgba(110, 220, 160, 0.9);
+  text-shadow: 0 0 6px rgba(110, 220, 160, 0.5);
+  opacity: 0;
+  animation: code-fall var(--dur) linear var(--delay) infinite;
+}
+@keyframes code-fall {
+  0%   { transform: translateY(0); opacity: 0; }
+  8%   { opacity: var(--max-op); }
+  92%  { opacity: var(--max-op); }
+  100% { transform: translateY(112vh); opacity: 0; }
+}
+.code-scanline {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(110,220,160,.06) 50%, transparent 100%);
+  background-size: 100% 240%;
+  animation: code-scan 9s ease-in-out infinite;
+}
+@keyframes code-scan {
+  0%   { background-position: 0 -120%; }
+  100% { background-position: 0 220%; }
+}
+
+/* ── Gym ── */
+.bg-gym { background: #0e0806; }
+.gym-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(232,155,90,.16) 0%, transparent 70%);
+  animation: gym-pulse 3.2s ease-in-out infinite;
+}
+@keyframes gym-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+.gym-ring {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 40px; height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(232,155,90,.5);
+  animation: gym-ring-out 4.8s ease-out var(--delay) infinite;
+}
+@keyframes gym-ring-out {
+  0%   { transform: scale(0.3); opacity: 0.7; }
+  100% { transform: scale(9); opacity: 0; }
+}
+.gym-ekg {
+  position: absolute;
+  left: 0; top: 62%;
+  width: 100%; height: 60px;
+  opacity: 0.5;
+}
+.gym-ekg-line {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: gym-ekg-draw 3.6s linear infinite;
+}
+@keyframes gym-ekg-draw {
+  0%   { stroke-dashoffset: 400; }
+  70%  { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -400; }
+}
+.gym-barbell {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  transform: rotate(var(--rot)) scale(var(--scale));
+  opacity: 0.16;
+  animation: gym-drift var(--dur) ease-in-out var(--delay) infinite alternate;
+}
+.gym-bar   { width: 26px; height: 3px;  background: rgba(232,155,90,.7); border-radius: 2px; }
+.gym-plate { width: 10px; height: 18px; background: rgba(232,155,90,.6); border-radius: 3px; }
+@keyframes gym-drift {
+  from { transform: rotate(var(--rot)) scale(var(--scale)) translateY(0); }
+  to   { transform: rotate(calc(var(--rot) + 8deg)) scale(var(--scale)) translateY(-14px); }
+}
+
+/* ── Enfoque ── */
+.bg-focus { background: #0a0d12; }
+.focus-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 70% 65% at 50% 50%, transparent 40%, rgba(0,0,0,.55) 100%);
+}
+.focus-glow {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 46vmin; height: 46vmin;
+  margin: -23vmin 0 0 -23vmin;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(91,156,246,.18) 0%, transparent 70%);
+  animation: focus-breathe 6s ease-in-out infinite alternate;
+}
+@keyframes focus-breathe {
+  from { transform: scale(0.92); opacity: 0.6; }
+  to   { transform: scale(1.08); opacity: 1; }
+}
+.focus-ring {
+  position: absolute;
+  top: 50%; left: 50%;
+  border-radius: 50%;
+  border: 1px solid rgba(91,156,246,.28);
+  transform: translate(-50%, -50%);
+}
+.focus-ring-1 { width: 18vmin; height: 18vmin; animation: focus-ring-pulse 5s ease-in-out infinite; }
+.focus-ring-2 { width: 26vmin; height: 26vmin; animation: focus-ring-pulse 5s ease-in-out 1.2s infinite; }
+@keyframes focus-ring-pulse {
+  0%, 100%  { opacity: 0.25; transform: translate(-50%, -50%) scale(1); }
+  50%       { opacity: 0.55; transform: translate(-50%, -50%) scale(1.04); }
+}
+.focus-dot {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 6px; height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: rgba(91,156,246,.9);
+  box-shadow: 0 0 12px 4px rgba(91,156,246,.4);
 }
 </style>

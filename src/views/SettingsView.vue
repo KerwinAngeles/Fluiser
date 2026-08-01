@@ -64,6 +64,21 @@ const bgOptions: { id: BgEffect; label: [string, string]; preview: string }[] = 
     preview: 'linear-gradient(180deg, rgba(110,207,151,.5) 0%, rgba(91,156,246,.4) 40%, rgba(184,168,224,.3) 70%, transparent 100%)',
   },
   {
+    id: 'code',
+    label: ['Código', 'Code'],
+    preview: 'linear-gradient(180deg, rgba(110,220,160,.55) 0%, transparent 55%), #050807',
+  },
+  {
+    id: 'gym',
+    label: ['Gym', 'Gym'],
+    preview: 'radial-gradient(circle at 50% 50%, rgba(232,155,90,.6) 0%, transparent 55%), #0e0806',
+  },
+  {
+    id: 'focus',
+    label: ['Enfoque', 'Focus'],
+    preview: 'radial-gradient(circle at 50% 50%, rgba(91,156,246,.55) 0%, transparent 60%), #0a0d12',
+  },
+  {
     id: 'none',
     label: ['Ninguno', 'None'],
     preview: 'none',
