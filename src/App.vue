@@ -11,7 +11,6 @@ import TimerView from '@/views/TimerView.vue'
 import TimerWidget from '@/components/ui/TimerWidget.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import FocusModeView from '@/views/FocusModeView.vue'
-import OnboardingView from '@/views/OnboardingView.vue'
 import { RouterView } from 'vue-router'
 import { SpeedInsights } from '@vercel/speed-insights/vue'
 
@@ -74,7 +73,6 @@ const gateKey = computed(() => {
 const outerGate = computed(() => {
   if (authStore.loading || (!!authStore.user && store.loading)) return 'loading'
   if (!authStore.user) return 'auth'
-  if (!store.data.settings.onboarded) return 'onboarding'
   return 'ready'
 })
 </script>
@@ -97,11 +95,6 @@ const outerGate = computed(() => {
     <!-- Login page -->
     <div v-else-if="outerGate === 'auth'" key="auth" class="full-shell">
       <RouterView />
-    </div>
-
-    <!-- New user onboarding -->
-    <div v-else-if="outerGate === 'onboarding'" key="onboarding" class="full-shell">
-      <OnboardingView />
     </div>
 
     <!-- Authenticated app -->
