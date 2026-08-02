@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 import { useToday } from '@/composables/useToday'
 import { ICON_MAP, PlusIcon } from '@/components/icons/AppIcons'
-import MetaEditorModal from '@/components/modals/MetaEditorModal.vue'
 import VisionItemModal from '@/components/modals/VisionItemModal.vue'
 import type { Meta, VisionItem, WeeklyReview, Mood } from '@/types'
 import { MOODS } from '@/types'
 
 const store = useFluiserStore()
+const router = useRouter()
 const t = useT()
 const { today } = useToday()
 
@@ -23,25 +24,12 @@ const tabs = computed(() => [
 ])
 
 // ── Metas ──────────────────────────────────────────────────────────────
-const editingMeta = ref<Meta | null>(null)
-const isNewMeta = ref(false)
-
 function openNewMeta() {
-  editingMeta.value = {
-    id: crypto.randomUUID(),
-    title: '',
-    tone: 'sky',
-    icon: 'Brain',
-    habitIds: [],
-    status: 'active',
-    createdAt: today.value,
-  }
-  isNewMeta.value = true
+  router.push('/goals/new')
 }
 
 function openEditMeta(m: Meta) {
-  editingMeta.value = { ...m, habitIds: [...m.habitIds] }
-  isNewMeta.value = false
+  router.push(`/goals/${m.id}/edit`)
 }
 
 function metaProgress(m: Meta): number {
@@ -394,7 +382,6 @@ const headerSub = computed(() => {
       </template>
     </template>
 
-    <MetaEditorModal :meta="editingMeta" :isNew="isNewMeta" @close="editingMeta = null" />
     <VisionItemModal :item="editingVision" :isNew="isNewVision" @close="editingVision = null" />
   </div>
 </template>

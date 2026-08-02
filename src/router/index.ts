@@ -13,6 +13,8 @@ const router = createRouter({
     { path: '/habits/:id/edit', name: 'habit-edit', component: () => import('@/views/HabitEditorView.vue'), meta: { requiresAuth: true } },
     { path: '/heatmap', name: 'heatmap', component: () => import('@/views/HeatmapView.vue'), meta: { requiresAuth: true } },
     { path: '/goals', name: 'goals', component: () => import('@/views/GoalsView.vue'), meta: { requiresAuth: true } },
+    { path: '/goals/new', name: 'meta-new', component: () => import('@/views/MetaEditorView.vue'), meta: { requiresAuth: true } },
+    { path: '/goals/:id/edit', name: 'meta-edit', component: () => import('@/views/MetaEditorView.vue'), meta: { requiresAuth: true } },
     { path: '/flow', name: 'flow', component: () => import('@/views/FlowJournalView.vue'), meta: { requiresAuth: true } },
     { path: '/settings', name: 'settings', component: () => import('@/views/SettingsView.vue'), meta: { requiresAuth: true } },
   ],
