@@ -56,9 +56,12 @@ function next() { if (step.value < TOTAL_STEPS - 1) step.value++ }
 function back() { if (step.value > 0) step.value-- }
 
 async function finish() {
+  let createdHabitIds: string[] = []
   if (selectedCategory.value) {
     const prefTime = TIME_OPTIONS.find(o => o.id === timeOfDay.value)?.defaultTime
-    for (const h of suggested.value.filter(h => selectedHabitIds.value.has(h.id))) {
+    const habitsToCreate = suggested.value.filter(h => selectedHabitIds.value.has(h.id))
+    createdHabitIds = habitsToCreate.map(h => h.id)
+    for (const h of habitsToCreate) {
       await store.upsertHabit({
         id: h.id, name: h.name, category: selectedCategory.value,
         icon: h.icon, tone: h.tone,
@@ -68,6 +71,19 @@ async function finish() {
         createdAt: new Date().toISOString(),
       })
     }
+  }
+  if (mainGoal.value && selectedCategory.value) {
+    const goalPreset = GOALS.find(g => g.id === mainGoal.value)!
+    const cat = CATEGORIES.find(c => c.id === selectedCategory.value)!
+    await store.upsertMeta({
+      id: crypto.randomUUID(),
+      title: goalPreset.label,
+      tone: cat.tone,
+      icon: cat.icon,
+      habitIds: createdHabitIds,
+      status: 'active',
+      createdAt: new Date().toISOString(),
+    })
   }
   await store.writeSettings({ name: name.value || t('Amigo', 'Friend'), onboarded: true })
 }
