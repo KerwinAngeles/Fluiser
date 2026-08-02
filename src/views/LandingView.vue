@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { motion, useMotionValue, useSpring, useTransform, animate } from 'motion-v'
+import { motion, animate } from 'motion-v'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useAuthStore } from '@/stores/auth'
 import { useTheme } from '@/composables/useTheme'
 import { useT } from '@/composables/useLang'
 import {
   SunIcon, MoonIcon, ArrowRightIcon, TimelineIcon, AnalyticsIcon, SparkleIcon,
-  LeafIcon, BookIcon, RunIcon, PauseIcon, CompassIcon, HeartIcon,
+  BookIcon, RunIcon, PauseIcon, CompassIcon, HeartIcon,
 } from '@/components/icons/AppIcons'
+
+gsap.registerPlugin(ScrollTrigger)
 
 const auth = useAuthStore()
 const { lang, dark } = useTheme()
@@ -28,26 +32,66 @@ const scrollEl = ref<HTMLElement | null>(null)
 const scrolled = ref(false)
 function onScroll() { scrolled.value = (scrollEl.value?.scrollTop ?? 0) > 8 }
 
-/* ── Hero tilt (mouse-driven, spring-smoothed) ───────────────────── */
-const mx = useMotionValue(0)
-const my = useMotionValue(0)
-const rotateX = useSpring(useTransform(my, [-0.5, 0.5], [10, -10]), { stiffness: 160, damping: 22 })
-const rotateY = useSpring(useTransform(mx, [-0.5, 0.5], [-10, 10]), { stiffness: 160, damping: 22 })
-function onHeroMove(e: MouseEvent) {
-  const el = e.currentTarget as HTMLElement
-  const r = el.getBoundingClientRect()
-  mx.set((e.clientX - r.left) / r.width - 0.5)
-  my.set((e.clientY - r.top) / r.height - 0.5)
+/* ── Anchor nav (single-page scroll) ─────────────────────────────── */
+function scrollToId(id: string) {
+  if (id === 'top') { scrollEl.value?.scrollTo({ top: 0, behavior: 'smooth' }); return }
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
-function onHeroLeave() { mx.set(0); my.set(0) }
+
+/* ── Semicircle / flattened-arc gauge dial (reused: hero + focus card) ── */
+function useGaugeDial(opts: { rx: number; ry: number; cx: number; cy: number; maxS: number; targetS: number; ticks: number; tickLen: number }) {
+  const { rx, ry, cx, cy, maxS, targetS, ticks, tickLen } = opts
+  // Ramanujan's approximation for a half-ellipse arc length — only needs to be
+  // self-consistent between dasharray/dashoffset, not geometrically exact.
+  const h = ((rx - ry) ** 2) / ((rx + ry) ** 2)
+  const circumference = (Math.PI * (rx + ry) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)))) / 2
+  const path = `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx + rx} ${cy}`
+  const seconds = ref(0)
+  const display = computed(() => {
+    const m = Math.floor(seconds.value / 60)
+    const s = seconds.value % 60
+    return `${m}:${String(s).padStart(2, '0')}`
+  })
+  const fraction = computed(() => Math.min(1, seconds.value / maxS))
+  const dashOffset = computed(() => circumference * (1 - fraction.value))
+  const tipAngleRad = computed(() => (180 * (1 - fraction.value) * Math.PI) / 180)
+  const tip = computed(() => ({
+    x: cx + rx * Math.cos(tipAngleRad.value),
+    y: cy - ry * Math.sin(tipAngleRad.value),
+  }))
+  const tickList = computed(() => Array.from({ length: ticks }, (_, i) => {
+    const deg = 180 - i * (180 / (ticks - 1))
+    const rad = (deg * Math.PI) / 180
+    const major = i % 4 === 0
+    const f = major ? tickLen / ry : (tickLen * 0.5) / ry
+    const lit = i / (ticks - 1) <= fraction.value
+    return {
+      x1: cx + rx * Math.cos(rad), y1: cy - ry * Math.sin(rad),
+      x2: cx + rx * (1 - f) * Math.cos(rad), y2: cy - ry * (1 - f) * Math.sin(rad),
+      major, lit,
+    }
+  }))
+  function play() {
+    const state = { s: 0 }
+    gsap.to(state, {
+      s: targetS,
+      duration: 2.4,
+      ease: 'power3.out',
+      onUpdate: () => { seconds.value = Math.round(state.s) },
+    })
+  }
+  return reactive({ circumference, path, seconds, display, dashOffset, tip, ticks: tickList, play })
+}
+
+const heroGauge = useGaugeDial({ rx: 400, ry: 280, cx: 500, cy: 295, maxS: 50 * 60, targetS: 42 * 60 + 18, ticks: 25, tickLen: 26 })
+const focusGauge = useGaugeDial({ rx: 85, ry: 85, cx: 100, cy: 100, maxS: 45 * 60, targetS: 17 * 60 + 28, ticks: 17, tickLen: 10 })
+
+const focusCardRef = ref<HTMLElement | null>(null)
+const heroTipRef = ref<SVGCircleElement | null>(null)
+let focusIo: IntersectionObserver | null = null
+let focusPlayed = false
 
 /* ── Mock data for product-accurate previews ─────────────────────── */
-const mockHabits = [
-  { name: t('Meditar 10 min', 'Meditate 10 min'), icon: LeafIcon, tone: 'mint', done: true, cat: t('Mente', 'Mind') },
-  { name: t('Leer 20 páginas', 'Read 20 pages'), icon: BookIcon, tone: 'lilac', done: true, cat: t('Mente', 'Mind') },
-  { name: t('Entrenar', 'Train'), icon: RunIcon, tone: 'amber', done: false, cat: t('Cuerpo', 'Body') },
-]
-
 const mockGoals = [
   { label: t('Correr 10K', 'Run a 10K'), value: 0.72, tone: 'sky' },
   { label: t('Leer 12 libros', 'Read 12 books'), value: 0.4, tone: 'lilac' },
@@ -64,6 +108,21 @@ const heatCells = Array.from({ length: 98 }, (_, i) => {
   const v = (i * 37 + (i % 7) * 13) % 11
   return v < 3 ? 0 : v < 5 ? 1 : v < 7 ? 2 : v < 9 ? 3 : 4
 })
+
+const howSteps = [
+  {
+    title: t('Crea tus hábitos', 'Create your habits'),
+    desc: t('Elige qué quieres construir y con qué frecuencia. Fluiser se adapta a tu ritmo.', 'Choose what you want to build and how often. Fluiser adapts to your pace.'),
+  },
+  {
+    title: t('Entra en enfoque', 'Enter focus'),
+    desc: t('Corre sesiones guiadas para tus tareas más importantes, sin distracciones.', 'Run guided sessions for your most important work, free of distractions.'),
+  },
+  {
+    title: t('Revisa tu semana', 'Review your week'),
+    desc: t('Cierra cada semana con una revisión guiada y ajusta tus metas.', 'Close every week with a guided review and adjust your goals.'),
+  },
+]
 
 const extraCards = [
   {
@@ -103,10 +162,52 @@ onMounted(() => {
   scrollEl.value?.addEventListener('scroll', onScroll, { passive: true })
   io = new IntersectionObserver((entries) => { if (entries[0]?.isIntersecting) playStats() }, { threshold: 0.5 })
   if (statsRef.value) io.observe(statsRef.value)
+  focusIo = new IntersectionObserver((entries) => {
+    if (entries[0]?.isIntersecting && !focusPlayed) { focusPlayed = true; focusGauge.play() }
+  }, { threshold: 0.5 })
+  if (focusCardRef.value) focusIo.observe(focusCardRef.value)
+  setTimeout(heroGauge.play, 500)
+
+  // GSAP: pulsing halo that rides the tip of the hero gauge
+  if (heroTipRef.value) {
+    gsap.to(heroTipRef.value, {
+      scale: 1.8, opacity: 0.12, duration: 1.3, ease: 'sine.inOut',
+      repeat: -1, yoyo: true, transformOrigin: '50% 50%',
+    })
+  }
+
+  // GSAP + ScrollTrigger: staggered scroll-reveals across the rest of the page
+  const scroller = scrollEl.value
+  if (scroller) {
+    gsap.from('.l-steps-grid .l-step', {
+      opacity: 0, y: 30, duration: 0.7, ease: 'power3.out', stagger: 0.12,
+      scrollTrigger: { trigger: '.l-steps-grid', scroller, start: 'top 85%' },
+    })
+    gsap.from('.l-features .l-feature-card', {
+      opacity: 0, y: 44, scale: 0.97, duration: 0.8, ease: 'power3.out', stagger: 0.15,
+      scrollTrigger: { trigger: '.l-features', scroller, start: 'top 85%' },
+    })
+    gsap.utils.toArray<HTMLElement>('.l-mock-goal-fill').forEach((el) => {
+      const target = el.style.width
+      gsap.fromTo(el, { width: '0%' }, {
+        width: target, duration: 1.1, ease: 'power2.out',
+        scrollTrigger: { trigger: el, scroller, start: 'top 90%' },
+      })
+    })
+    gsap.utils.toArray<HTMLElement>('.l-mock-heat-grid').forEach((grid) => {
+      gsap.from(grid.querySelectorAll('.hm-cell'), {
+        opacity: 0, scale: 0.3, duration: 0.4, ease: 'back.out(2)', stagger: 0.008,
+        scrollTrigger: { trigger: grid, scroller, start: 'top 88%' },
+      })
+    })
+  }
 })
 onUnmounted(() => {
   scrollEl.value?.removeEventListener('scroll', onScroll)
   io?.disconnect()
+  focusIo?.disconnect()
+  if (heroTipRef.value) gsap.killTweensOf(heroTipRef.value)
+  ScrollTrigger.getAll().forEach((st) => st.kill())
 })
 </script>
 
@@ -117,33 +218,47 @@ onUnmounted(() => {
       <rect width="100%" height="100%" filter="url(#l-noise-f)" />
     </svg>
 
-    <div class="glow glow-1" />
     <div class="glow glow-2" />
 
     <!-- Nav -->
     <header class="l-nav" :class="{ scrolled }">
-      <div class="l-brand">
-        <div class="l-brand-mark"><span>✦</span></div>
-        <span class="l-brand-name">Fluiser</span>
-      </div>
-      <div class="l-nav-actions">
-        <button class="tc-btn" :title="dark ? t('Modo claro', 'Light mode') : t('Modo oscuro', 'Dark mode')" @click="dark = !dark">
-          <SunIcon v-if="dark" :size="16" />
-          <MoonIcon v-else :size="16" />
-        </button>
-        <button class="tc-btn tc-lang" @click="lang = lang === 'es' ? 'en' : 'es'">
-          {{ lang === 'es' ? 'EN' : 'ES' }}
-        </button>
-        <motion.div :while-hover="{ scale: 1.04 }" :while-tap="{ scale: 0.96 }" :transition="{ duration: 0.15, ease: EASE }">
-          <RouterLink to="/auth" class="l-login-btn">{{ t('Iniciar sesión', 'Sign in') }}</RouterLink>
-        </motion.div>
+      <div class="l-nav-pill">
+        <a href="#top" class="l-brand" @click.prevent="scrollToId('top')">
+          <div class="l-brand-mark"><span>✦</span></div>
+          <span class="l-brand-name">Fluiser</span>
+        </a>
+        <nav class="l-nav-links">
+          <a href="#top" class="l-nav-link" @click.prevent="scrollToId('top')">{{ t('Inicio', 'Home') }}</a>
+          <a href="#enfoque" class="l-nav-link" @click.prevent="scrollToId('enfoque')">{{ t('Enfoque', 'Focus') }}</a>
+          <a href="#metas" class="l-nav-link" @click.prevent="scrollToId('metas')">{{ t('Metas', 'Goals') }}</a>
+          <a href="#consistencia" class="l-nav-link" @click.prevent="scrollToId('consistencia')">{{ t('Consistencia', 'Consistency') }}</a>
+        </nav>
+        <div class="l-nav-actions">
+          <button class="tc-btn" :title="dark ? t('Modo claro', 'Light mode') : t('Modo oscuro', 'Dark mode')" @click="dark = !dark">
+            <SunIcon v-if="dark" :size="15" />
+            <MoonIcon v-else :size="15" />
+          </button>
+          <button class="tc-btn tc-lang" @click="lang = lang === 'es' ? 'en' : 'es'">
+            {{ lang === 'es' ? 'EN' : 'ES' }}
+          </button>
+          <motion.div :while-hover="{ scale: 1.04 }" :while-tap="{ scale: 0.96 }" :transition="{ duration: 0.15, ease: EASE }">
+            <RouterLink to="/auth" class="l-nav-cta">{{ t('Iniciar sesión', 'Sign in') }}</RouterLink>
+          </motion.div>
+        </div>
       </div>
     </header>
 
     <main ref="scrollEl" class="l-scroll">
       <!-- Hero -->
-      <section class="l-hero">
-        <div class="l-hero-copy">
+      <section class="l-hero" id="top">
+        <div class="glow-red" aria-hidden="true" />
+        <div class="glow-green" aria-hidden="true" />
+
+        <motion.div
+          class="l-hero-frame"
+          :initial="{ opacity: 0, scale: 0.96 }" :animate="{ opacity: 1, scale: 1 }"
+          :transition="{ duration: 0.8, ease: EASE }"
+        >
           <motion.div
             class="l-eyebrow"
             :initial="{ opacity: 0, y: 10 }" :animate="{ opacity: 1, y: 0 }"
@@ -155,12 +270,12 @@ onUnmounted(() => {
               class="l-title-line"
               :initial="{ opacity: 0, y: 28 }" :animate="{ opacity: 1, y: 0 }"
               :transition="{ duration: 0.7, ease: EASE, delay: 0.08 }"
-            >{{ t('Construye hábitos', 'Build habits') }}</motion.span>
+            >{{ t('Ruido fuera. Enfoque dentro.', 'Noise off. Focus on.') }}</motion.span>
             <motion.span
-              class="l-title-line l-title-accent"
+              class="l-title-line"
               :initial="{ opacity: 0, y: 28 }" :animate="{ opacity: 1, y: 0 }"
               :transition="{ duration: 0.7, ease: EASE, delay: 0.18 }"
-            >{{ t('que de verdad se quedan.', 'that actually stick.') }}</motion.span>
+            >{{ t('Tus hábitos no esperan.', "Your habits don't wait.") }}</motion.span>
           </h1>
 
           <motion.p
@@ -206,178 +321,155 @@ onUnmounted(() => {
             <span class="l-trust-sep">·</span>
             <span>{{ t('Sin anuncios', 'No ads') }}</span>
           </motion.div>
-        </div>
 
-        <!-- Floating product preview -->
-        <motion.div
-          class="l-hero-visual"
-          :initial="{ opacity: 0, scale: 0.92, rotate: -2 }" :animate="{ opacity: 1, scale: 1, rotate: 0 }"
-          :transition="{ duration: 0.8, ease: EASE, delay: 0.2 }"
-        >
+          <!-- Flow-time gauge — fills the bottom of the frame, cropped by its edge -->
           <motion.div
-            class="l-mock-card"
-            :style="{ rotateX, rotateY, transformPerspective: 1400 }"
-            @mousemove="onHeroMove" @mouseleave="onHeroLeave"
+            class="l-gauge-wrap l-gauge-wrap-hero"
+            :initial="{ opacity: 0, y: 24 }" :animate="{ opacity: 1, y: 0 }"
+            :transition="{ duration: 0.7, ease: EASE, delay: 0.5 }"
           >
-            <div class="l-mock-nav">
-              <div class="l-mock-brand"><span>✦</span> Fluiser</div>
-              <div class="l-mock-date">{{ t('Hoy', 'Today') }}</div>
-            </div>
-            <div class="l-mock-body">
-              <div class="l-mock-ring-row">
-                <div class="ring-wrap" style="width:72px;height:72px">
-                  <svg width="72" height="72" style="transform:rotate(-90deg)">
-                    <circle cx="36" cy="36" r="30" stroke-width="6" fill="none" stroke="var(--border-default)" />
-                    <circle cx="36" cy="36" r="30" stroke-width="6" fill="none" stroke="var(--accent)" stroke-linecap="round"
-                      stroke-dasharray="188.5" stroke-dashoffset="60" />
-                  </svg>
-                  <div class="ring-text">
-                    <div style="font-family:var(--font-display);font-weight:600;font-size:18px;letter-spacing:-0.02em">68%</div>
-                  </div>
-                </div>
-                <div class="l-mock-streak">
-                  <div class="l-mock-streak-num">12</div>
-                  <div class="l-mock-streak-label">{{ t('días seguidos', 'day streak') }}</div>
-                </div>
-              </div>
-              <div class="l-mock-habits">
-                <div v-for="h in mockHabits" :key="h.name" class="l-mock-habit">
-                  <span :class="['h-check', h.done ? 'done' : '']"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7" /></svg></span>
-                  <span class="l-mock-habit-icon" :style="{ background: `var(--${h.tone}-soft)`, color: `var(--${h.tone})` }">
-                    <component :is="h.icon" :size="14" />
-                  </span>
-                  <span class="l-mock-habit-text" :class="{ done: h.done }">{{ h.name }}</span>
-                </div>
-              </div>
+            <svg class="l-gauge" viewBox="0 0 1000 310" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+              <defs>
+                <linearGradient id="l-gauge-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#5A99E8" />
+                  <stop offset="55%" stop-color="#7BB6FF" />
+                  <stop offset="100%" stop-color="#B8A8E0" />
+                </linearGradient>
+              </defs>
+              <line
+                v-for="(tk, i) in heroGauge.ticks" :key="i"
+                :x1="tk.x1" :y1="tk.y1" :x2="tk.x2" :y2="tk.y2"
+                class="l-gauge-tick" :class="{ major: tk.major, lit: tk.lit }"
+              />
+              <path class="l-gauge-track" :d="heroGauge.path" />
+              <path
+                class="l-gauge-fill" :d="heroGauge.path"
+                :style="{ strokeDasharray: heroGauge.circumference, strokeDashoffset: heroGauge.dashOffset }"
+              />
+              <circle
+                ref="heroTipRef" class="l-gauge-tip-halo"
+                :cx="heroGauge.tip.x" :cy="heroGauge.tip.y" r="16"
+              />
+              <circle
+                class="l-gauge-tip-dot"
+                :cx="heroGauge.tip.x" :cy="heroGauge.tip.y" r="7"
+              />
+            </svg>
+            <div class="l-gauge-center">
+              <div class="l-gauge-label">{{ t('Tiempo en flujo', 'Flow time') }}</div>
+              <div class="l-gauge-value tnum">{{ heroGauge.display }}</div>
             </div>
           </motion.div>
         </motion.div>
       </section>
 
-      <!-- Marquee -->
-      <div class="l-marquee">
-        <div class="l-marquee-track">
-          <span v-for="n in 2" :key="n" class="l-marquee-set">
-            <span>{{ t('Hábitos', 'Habits') }}</span><span class="l-marquee-dot">✦</span>
-            <span>{{ t('Enfoque', 'Focus') }}</span><span class="l-marquee-dot">✦</span>
-            <span>{{ t('Metas y Visión', 'Goals & Vision') }}</span><span class="l-marquee-dot">✦</span>
-            <span>{{ t('Consistencia', 'Consistency') }}</span><span class="l-marquee-dot">✦</span>
-            <span>{{ t('Flujo', 'Flow') }}</span><span class="l-marquee-dot">✦</span>
-            <span>Analytics</span><span class="l-marquee-dot">✦</span>
-          </span>
+      <!-- How it works -->
+      <section class="l-steps">
+        <div class="l-steps-head">
+          <div class="l-steps-eyebrow">{{ t('Cómo funciona', 'How it works') }}</div>
+          <h2 class="l-steps-title">{{ t('Tres pasos, cada día.', 'Three steps, every day.') }}</h2>
         </div>
-      </div>
+        <div class="l-steps-grid">
+          <div v-for="(s, i) in howSteps" :key="s.title" class="l-step">
+            <div class="l-step-num">{{ i + 1 }}</div>
+            <h3 class="l-step-title">{{ s.title }}</h3>
+            <p class="l-step-desc">{{ s.desc }}</p>
+          </div>
+        </div>
+      </section>
 
-      <!-- Showcase: Enfoque -->
-      <section class="l-showcase">
-        <motion.div
-          class="l-showcase-copy"
-          :initial="{ opacity: 0, x: -24 }" :while-in-view="{ opacity: 1, x: 0 }" :viewport="{ once: true, amount: 0.5 }"
-          :transition="{ duration: 0.6, ease: EASE }"
-        >
-          <div class="l-showcase-eyebrow">{{ t('Enfoque', 'Focus') }}</div>
-          <h2 class="l-showcase-title">{{ t('Una sesión, sin ruido.', 'One session, no noise.') }}</h2>
-          <p class="l-showcase-desc">
+      <!-- Feature cards — Leflow-style: title+number, description, status pill, widget -->
+      <section class="l-features">
+        <article id="enfoque" ref="focusCardRef" class="l-feature-card">
+          <div class="l-feature-glow-red" aria-hidden="true" /><div class="l-feature-glow-green" aria-hidden="true" />
+          <div class="l-feature-head">
+            <h3 class="l-feature-title">{{ t('Una sesión, sin ruido.', 'One session, no noise.') }}</h3>
+            <span class="l-feature-num"><span class="dim">0</span>1</span>
+          </div>
+          <p class="l-feature-desc">
             {{ t(
               'Entra a modo enfoque de pantalla completa, corre el temporizador y deja que el resto espere. Al cerrar la sesión, registras cómo te sentiste.',
               'Enter full-screen focus mode, run the timer, and let everything else wait. When the session ends, you log how it felt.',
             ) }}
           </p>
-        </motion.div>
-        <motion.div
-          class="l-showcase-visual"
-          :initial="{ opacity: 0, x: 24 }" :while-in-view="{ opacity: 1, x: 0 }" :viewport="{ once: true, amount: 0.5 }"
-          :transition="{ duration: 0.6, ease: EASE, delay: 0.1 }"
-        >
-          <div class="l-mock-card l-mock-focus">
-            <div class="l-mock-session-dots">
-              <span v-for="i in 4" :key="i" class="l-mock-dot" :class="{ active: i <= 2 }" />
-            </div>
-            <div class="ring-wrap" style="width:128px;height:128px">
-              <svg width="128" height="128" style="transform:rotate(-90deg)">
-                <circle cx="64" cy="64" r="54" stroke-width="7" fill="none" stroke="var(--border-default)" />
-                <circle cx="64" cy="64" r="54" stroke-width="7" fill="none" stroke="var(--amber)" stroke-linecap="round"
-                  stroke-dasharray="339.3" stroke-dashoffset="140" />
+          <div class="l-feature-widget">
+            <div class="l-feature-pill"><span class="dot" />{{ t('Tiempo de flujo. Enfócate 45 min', 'Flow time. Be focused for 45 min') }}</div>
+            <div class="l-feature-inner l-feature-inner-gauge">
+              <svg class="l-gauge l-gauge-sm" viewBox="0 0 200 116" aria-hidden="true">
+                <line
+                  v-for="(tk, i) in focusGauge.ticks" :key="i"
+                  :x1="tk.x1" :y1="tk.y1" :x2="tk.x2" :y2="tk.y2"
+                  class="l-gauge-tick" :class="{ major: tk.major, lit: tk.lit }"
+                />
+                <path class="l-gauge-track" :d="focusGauge.path" />
+                <path
+                  class="l-gauge-fill" :d="focusGauge.path"
+                  :style="{ strokeDasharray: focusGauge.circumference, strokeDashoffset: focusGauge.dashOffset }"
+                />
               </svg>
-              <div class="ring-text">
-                <div style="font-family:var(--font-display);font-weight:600;font-size:24px;letter-spacing:-0.02em" class="tnum">24:59</div>
-                <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;margin-top:4px">{{ t('Enfoque', 'Focus') }}</div>
+              <div class="l-gauge-center l-gauge-center-sm">
+                <div class="l-gauge-label">{{ t('Enfoque', 'Focus') }}</div>
+                <div class="l-gauge-value tnum">{{ focusGauge.display }}</div>
               </div>
+              <button class="l-mock-pill-btn l-feature-btn"><PauseIcon :size="12" /> {{ t('Pausar', 'Pause') }}</button>
             </div>
-            <button class="l-mock-pill-btn">
-              <PauseIcon :size="13" /> {{ t('Pausar', 'Pause') }}
-            </button>
           </div>
-        </motion.div>
-      </section>
+        </article>
 
-      <!-- Showcase: Metas y Visión -->
-      <section class="l-showcase reverse">
-        <motion.div
-          class="l-showcase-visual"
-          :initial="{ opacity: 0, x: -24 }" :while-in-view="{ opacity: 1, x: 0 }" :viewport="{ once: true, amount: 0.5 }"
-          :transition="{ duration: 0.6, ease: EASE }"
-        >
-          <div class="l-mock-card l-mock-goals">
-            <div v-for="g in mockGoals" :key="g.label" class="l-mock-goal">
-              <div class="l-mock-goal-head">
-                <span>{{ g.label }}</span>
-                <span class="tnum">{{ Math.round(g.value * 100) }}%</span>
-              </div>
-              <div class="l-mock-goal-track">
-                <div class="l-mock-goal-fill" :style="{ width: `${g.value * 100}%`, background: `var(--${g.tone})` }" />
-              </div>
-            </div>
-            <div class="l-mock-vision-grid">
-              <div v-for="(v, i) in visionTiles" :key="i" class="l-mock-vision-tile" :style="{ background: v.bg }">
-                <component :is="v.icon" :size="16" :style="{ color: v.fg }" />
-              </div>
-            </div>
+        <article id="metas" class="l-feature-card">
+          <div class="l-feature-glow-red" aria-hidden="true" /><div class="l-feature-glow-green" aria-hidden="true" />
+          <div class="l-feature-head">
+            <h3 class="l-feature-title">{{ t('De la intención a la meta.', 'From intention to goal.') }}</h3>
+            <span class="l-feature-num"><span class="dim">0</span>2</span>
           </div>
-        </motion.div>
-        <motion.div
-          class="l-showcase-copy"
-          :initial="{ opacity: 0, x: 24 }" :while-in-view="{ opacity: 1, x: 0 }" :viewport="{ once: true, amount: 0.5 }"
-          :transition="{ duration: 0.6, ease: EASE, delay: 0.1 }"
-        >
-          <div class="l-showcase-eyebrow">{{ t('Metas y Visión', 'Goals & Vision') }}</div>
-          <h2 class="l-showcase-title">{{ t('De la intención a la meta.', 'From intention to goal.') }}</h2>
-          <p class="l-showcase-desc">
+          <p class="l-feature-desc">
             {{ t(
               'Conecta tus hábitos a metas concretas, arma tu Vision Board y cierra cada semana con una revisión guiada.',
               'Connect your habits to concrete goals, build your Vision Board, and close every week with a guided review.',
             ) }}
           </p>
-        </motion.div>
-      </section>
+          <div class="l-feature-widget">
+            <div class="l-feature-pill"><span class="dot" />{{ t('3 metas activas esta semana', '3 goals active this week') }}</div>
+            <div class="l-feature-inner l-feature-inner-goals">
+              <div v-for="g in mockGoals" :key="g.label" class="l-mock-goal">
+                <div class="l-mock-goal-head">
+                  <span>{{ g.label }}</span>
+                  <span class="tnum">{{ Math.round(g.value * 100) }}%</span>
+                </div>
+                <div class="l-mock-goal-track">
+                  <div class="l-mock-goal-fill" :style="{ width: `${g.value * 100}%`, background: `var(--${g.tone})` }" />
+                </div>
+              </div>
+              <div class="l-mock-vision-grid">
+                <div v-for="(v, i) in visionTiles" :key="i" class="l-mock-vision-tile" :style="{ background: v.bg }">
+                  <component :is="v.icon" :size="16" :style="{ color: v.fg }" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
 
-      <!-- Showcase: Consistencia -->
-      <section class="l-showcase">
-        <motion.div
-          class="l-showcase-copy"
-          :initial="{ opacity: 0, x: -24 }" :while-in-view="{ opacity: 1, x: 0 }" :viewport="{ once: true, amount: 0.5 }"
-          :transition="{ duration: 0.6, ease: EASE }"
-        >
-          <div class="l-showcase-eyebrow">{{ t('Consistencia', 'Consistency') }}</div>
-          <h2 class="l-showcase-title">{{ t('Tu patrón, a la vista.', 'Your pattern, in view.') }}</h2>
-          <p class="l-showcase-desc">
+        <article id="consistencia" class="l-feature-card">
+          <div class="l-feature-glow-red" aria-hidden="true" /><div class="l-feature-glow-green" aria-hidden="true" />
+          <div class="l-feature-head">
+            <h3 class="l-feature-title">{{ t('Tu patrón, a la vista.', 'Your pattern, in view.') }}</h3>
+            <span class="l-feature-num"><span class="dim">0</span>3</span>
+          </div>
+          <p class="l-feature-desc">
             {{ t(
               'Un mapa de calor de todo tu año, al estilo GitHub. Sin trucos: solo la verdad de cuánto apareciste.',
               'A GitHub-style heatmap of your whole year. No tricks — just the truth of how often you showed up.',
             ) }}
           </p>
-        </motion.div>
-        <motion.div
-          class="l-showcase-visual"
-          :initial="{ opacity: 0, x: 24 }" :while-in-view="{ opacity: 1, x: 0 }" :viewport="{ once: true, amount: 0.5 }"
-          :transition="{ duration: 0.6, ease: EASE, delay: 0.1 }"
-        >
-          <div class="l-mock-card l-mock-heatmap">
-            <div class="l-mock-heat-grid">
-              <div v-for="(lvl, i) in heatCells" :key="i" class="hm-cell" :data-l="lvl" />
+          <div class="l-feature-widget">
+            <div class="l-feature-pill"><span class="dot" />{{ t('12 días seguidos', '12-day streak') }}</div>
+            <div class="l-feature-inner l-feature-inner-heat">
+              <div class="l-mock-heat-grid">
+                <div v-for="(lvl, i) in heatCells" :key="i" class="hm-cell" :data-l="lvl" />
+              </div>
             </div>
           </div>
-        </motion.div>
+        </article>
       </section>
 
       <!-- Extra features -->
@@ -450,6 +542,9 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  --font-condensed: 'Anton', var(--font-display);
+  --l-accent-1: var(--accent);
+  --l-accent-2: var(--lilac);
 }
 
 .l-noise {
@@ -471,50 +566,70 @@ onUnmounted(() => {
   opacity: 0.26;
   z-index: 0;
 }
-.glow-1 { width: 700px; height: 700px; top: -220px; left: -160px; background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%); }
 .glow-2 { width: 600px; height: 600px; top: 480px; right: -140px; background: radial-gradient(circle, var(--lilac-soft) 0%, transparent 70%); opacity: 0.5; }
 
-/* Nav */
+/* Nav — floating pill, Leflow-style */
 .l-nav {
   position: relative;
   z-index: 4;
   flex-shrink: 0;
-  height: 64px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 clamp(20px, 5vw, 56px);
-  border-bottom: 1px solid transparent;
-  background: transparent;
-  transition: background var(--transition), border-color var(--transition), backdrop-filter var(--transition);
+  justify-content: center;
+  padding: 22px clamp(16px, 4vw, 40px) 18px;
 }
-.l-nav.scrolled {
-  background: rgba(10, 11, 13, 0.6);
-  backdrop-filter: blur(20px);
-  border-bottom-color: var(--border-subtle);
+.l-nav-pill {
+  width: 100%;
+  max-width: 860px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 10px 9px 18px;
+  border-radius: var(--r-full);
+  background: rgba(10, 11, 13, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  transition: background var(--transition), border-color var(--transition);
 }
-.l-brand { display: flex; align-items: center; gap: 10px; }
+.l-nav.scrolled .l-nav-pill {
+  background: rgba(10, 11, 13, 0.85);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.l-brand { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
 .l-brand-mark {
-  width: 30px; height: 30px; border-radius: 50%;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.1);
+  width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
   display: grid; place-items: center;
-  font-size: 13px;
+  font-size: 11px;
   color: rgba(255,255,255,0.95);
-  text-shadow: 0 0 6px var(--accent);
+  text-shadow: 0 0 6px var(--l-accent-1);
 }
-.l-brand-name { font-family: var(--font-display); font-weight: 600; font-size: 16px; letter-spacing: -0.02em; }
+.l-brand-name { font-family: var(--font-display); font-weight: 600; font-size: 14.5px; letter-spacing: -0.02em; }
 
-.l-nav-actions { display: flex; align-items: center; gap: 8px; }
-.l-login-btn {
-  display: block;
-  padding: 7px 16px;
-  border-radius: 9px;
-  font-size: 13.5px;
+.l-nav-links { display: flex; align-items: center; gap: 2px; margin: 0 auto; padding-left: 18px; }
+.l-nav-link {
+  padding: 7px 13px;
+  border-radius: var(--r-full);
+  font-size: 13px;
   font-weight: 500;
-  color: var(--text-1);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
+  color: var(--text-2);
+  white-space: nowrap;
+  transition: background 160ms ease, color 160ms ease;
+}
+.l-nav-link:hover { color: var(--text-1); background: rgba(255,255,255,0.06); }
+
+.l-nav-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.l-nav-cta {
+  display: block;
+  padding: 8px 18px;
+  border-radius: var(--r-full);
+  font-size: 13px;
+  font-weight: 600;
+  color: #0A0806;
+  background: var(--text-1);
 }
 
 /* Scroll area */
@@ -527,62 +642,74 @@ onUnmounted(() => {
   scroll-behavior: smooth;
 }
 
-/* Hero */
+/* Hero — Leflow-style bezel with ambient red/green glow, fills the screen */
 .l-hero {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: clamp(48px, 9vh, 96px) 24px 64px;
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 48px;
-  align-items: center;
+  position: relative;
+  margin: 0;
+  min-height: calc(100vh - 116px);
+  padding: 0;
+  display: flex;
 }
-.l-hero-copy { max-width: 560px; }
+.glow-red, .glow-green {
+  position: absolute;
+  width: 720px; height: 720px;
+  border-radius: 50%;
+  filter: blur(130px);
+  pointer-events: none;
+  z-index: 0;
+}
+.glow-red   { top: -200px; left: -160px;  background: radial-gradient(circle, var(--l-accent-1) 0%, transparent 70%);   opacity: 0.55; }
+.glow-green { top: -220px; right: -160px; background: radial-gradient(circle, var(--l-accent-2) 0%, transparent 70%); opacity: 0.4; }
+
+.l-hero-frame {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: clamp(20px, 4vh, 40px) clamp(20px, 5vw, 56px) 0;
+  overflow: hidden;
+}
+
 .l-eyebrow {
-  font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--text-3); font-weight: 600; margin-bottom: 18px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--text-3); font-weight: 600; margin-bottom: 20px;
 }
 .l-title { margin: 0; }
 .l-title-line {
   display: block;
-  font-family: var(--font-display);
-  font-size: clamp(34px, 4.6vw, 56px);
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1.08;
-}
-.l-title-accent {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 500;
-  background: linear-gradient(120deg, var(--accent) 0%, var(--lilac) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-family: var(--font-condensed);
+  font-size: clamp(30px, 5.4vw, 58px);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  color: var(--text-1);
 }
 .l-sub {
-  font-size: 16px;
+  font-size: 15.5px;
   color: var(--text-2);
   max-width: 480px;
-  margin: 20px 0 0;
+  margin: 22px auto 0;
   line-height: 1.6;
 }
 
-.l-cta-row { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; }
+.l-cta-row { display: flex; justify-content: center; gap: 12px; margin-top: 30px; flex-wrap: wrap; }
 .l-btn-primary {
   display: inline-flex; align-items: center; gap: 8px;
   height: 46px; padding: 0 22px;
   border-radius: 12px;
   background: #ffffff; color: #0A0B0D;
   font-size: 14.5px; font-weight: 600;
-  box-shadow: 0 4px 20px rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 24px var(--accent-glow), 0 1px 2px rgba(0,0,0,0.3);
 }
 .l-btn-secondary {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 46px; padding: 0 22px;
   border-radius: 12px;
   background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
   color: var(--text-1);
   font-size: 14.5px; font-weight: 500;
 }
@@ -592,105 +719,142 @@ onUnmounted(() => {
   display: block;
   width: 15px; height: 15px;
   border: 2px solid rgba(255,255,255,0.15);
-  border-top-color: var(--accent);
+  border-top-color: var(--l-accent-1);
   border-radius: 50%;
   animation: l-spin 0.65s linear infinite;
 }
 @keyframes l-spin { to { transform: rotate(360deg); } }
 
-.l-trust-row { display: flex; align-items: center; gap: 8px; margin-top: 26px; font-size: 11.5px; color: var(--text-3); }
+.l-trust-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 24px; font-size: 11.5px; color: var(--text-3); }
 .l-trust-sep { color: rgba(255,255,255,0.15); }
 
-/* Hero visual / mock card */
-.l-hero-visual { position: relative; display: flex; justify-content: center; perspective: 1400px; }
-.l-hero-visual::before {
-  content: '';
-  position: absolute;
-  inset: -60px;
-  background: radial-gradient(circle at 50% 45%, var(--accent-glow) 0%, transparent 68%);
-  filter: blur(30px);
-  opacity: 0.55;
-  z-index: -1;
-}
-.l-mock-card {
+/* Flow-time gauge */
+.l-gauge-wrap {
   position: relative;
-  width: 100%;
-  max-width: 320px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-lg), var(--inner-hi);
-  overflow: hidden;
-  transform-style: preserve-3d;
+  width: min(100%, 560px);
+  margin-top: 44px;
 }
-.l-mock-card::before {
-  content: '';
+.l-gauge { display: block; width: 100%; height: auto; overflow: visible; }
+.l-gauge-track { fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 14; stroke-linecap: round; }
+.l-gauge-fill {
+  fill: none; stroke: url(#l-gauge-grad); stroke-width: 14; stroke-linecap: round;
+  filter: drop-shadow(0 0 14px var(--accent-glow));
+}
+.l-gauge-tick { stroke: rgba(255, 255, 255, 0.16); stroke-width: 1.5; transition: stroke 300ms ease; }
+.l-gauge-tick.major { stroke: rgba(255, 255, 255, 0.3); stroke-width: 2; }
+.l-gauge-tick.lit { stroke: var(--accent); opacity: 0.9; }
+.l-gauge-tick.lit.major { stroke: var(--mint); }
+.l-gauge-tip-halo { fill: var(--accent); opacity: 0.35; filter: blur(1px); }
+.l-gauge-tip-dot { fill: #ffffff; filter: drop-shadow(0 0 8px var(--accent)); }
+.l-gauge-center {
   position: absolute;
-  top: 0; left: 15%; right: 15%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
-  z-index: 1;
+  left: 50%; bottom: 4%;
+  transform: translateX(-50%);
+  text-align: center;
 }
-.l-mock-nav {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.l-mock-brand { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-weight: 600; font-size: 13px; }
-.l-mock-date { font-size: 11px; color: var(--text-3); }
-.l-mock-body { padding: 18px; display: flex; flex-direction: column; gap: 18px; }
-.l-mock-ring-row { display: flex; align-items: center; gap: 16px; }
-.l-mock-streak-num { font-family: var(--font-display); font-weight: 600; font-size: 20px; letter-spacing: -0.02em; }
-.l-mock-streak-label { font-size: 11px; color: var(--text-3); }
-.l-mock-habits { display: flex; flex-direction: column; gap: 8px; }
-.l-mock-habit { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 10px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); }
-.l-mock-habit-icon { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; flex-shrink: 0; }
-.l-mock-habit-text { font-size: 12.5px; font-weight: 500; color: var(--text-1); }
-.l-mock-habit-text.done { color: var(--text-3); text-decoration: line-through; }
+.l-gauge-label { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+.l-gauge-value { font-family: var(--font-condensed); font-weight: 400; font-size: clamp(32px, 6vw, 52px); color: var(--text-1); letter-spacing: 0; }
 
-/* Marquee */
-.l-marquee {
-  border-top: 1px solid var(--border-subtle);
-  border-bottom: 1px solid var(--border-subtle);
-  overflow: hidden;
-  padding: 18px 0;
+/* Hero gauge — rounded dial, pinned to the bottom of the frame */
+.l-gauge-wrap-hero {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  width: min(74%, 900px);
+  max-width: none;
+  margin: 0 auto;
+  pointer-events: none;
+  z-index: 0;
 }
-.l-marquee-track { display: flex; width: max-content; animation: l-marquee 26s linear infinite; }
-.l-marquee-set { display: flex; align-items: center; gap: 20px; padding-right: 20px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; }
-.l-marquee-dot { color: var(--accent); opacity: 0.7; font-size: 11px; }
-@keyframes l-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.l-gauge-wrap-hero .l-gauge-center { bottom: 13%; }
+.l-gauge-wrap-hero .l-gauge-value { font-size: clamp(36px, 5vw, 60px); }
+.l-gauge-wrap-hero .l-gauge-fill { stroke-width: 20; }
+.l-gauge-wrap-hero .l-gauge-track { stroke-width: 20; }
 
-/* Showcase rows */
-.l-showcase {
+/* How it works */
+.l-steps {
   max-width: 1100px;
   margin: 0 auto;
-  padding: clamp(56px, 9vh, 96px) 24px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 56px;
-  align-items: center;
+  padding: clamp(48px, 8vh, 84px) 24px clamp(24px, 4vh, 40px);
 }
-.l-showcase.reverse .l-showcase-copy { order: 2; }
-.l-showcase.reverse .l-showcase-visual { order: 1; }
-.l-showcase-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); font-weight: 600; margin-bottom: 12px; }
-.l-showcase-title { font-family: var(--font-display); font-size: clamp(24px, 3vw, 32px); font-weight: 600; letter-spacing: -0.02em; margin: 0 0 14px; line-height: 1.2; }
-.l-showcase-desc { font-size: 15px; color: var(--text-2); line-height: 1.65; max-width: 420px; margin: 0; }
-.l-showcase-visual { position: relative; display: flex; justify-content: center; }
-.l-showcase-visual::before {
+.l-steps-head { text-align: center; margin-bottom: 40px; }
+.l-steps-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); font-weight: 600; margin-bottom: 12px; }
+.l-steps-title { font-family: var(--font-display); font-size: clamp(24px, 3vw, 32px); font-weight: 600; letter-spacing: -0.02em; margin: 0; }
+.l-steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.l-step { padding: 24px; border-radius: var(--r-lg); background: var(--bg-surface); border: 1px solid var(--border-subtle); box-shadow: var(--inner-hi), var(--shadow-sm); }
+.l-step-num {
+  width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-display); font-weight: 600; font-size: 13px;
+  margin-bottom: 16px;
+}
+.l-step-title { font-size: 16px; font-weight: 600; margin: 0 0 8px; letter-spacing: -0.01em; }
+.l-step-desc { font-size: 13.5px; color: var(--text-2); line-height: 1.55; margin: 0; }
+
+/* Feature cards — Leflow-style numbered cards with dot-grid + red/green edge glow */
+.l-features {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: clamp(32px, 6vh, 64px) 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.l-feature-card {
+  position: relative;
+  padding: clamp(22px, 4vw, 32px) clamp(20px, 4vw, 32px);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,0.07) 1px, transparent 1px) 0 0 / 15px 15px,
+    linear-gradient(180deg, rgba(16, 14, 20, 0.85) 0%, rgba(6, 5, 8, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 60px -24px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+.l-feature-card::before {
   content: '';
   position: absolute;
-  inset: -40px;
-  background: radial-gradient(circle at 50% 45%, var(--accent-glow) 0%, transparent 68%);
-  filter: blur(28px);
-  opacity: 0.4;
-  z-index: -1;
+  top: 0; left: 6%; right: 6%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--l-accent-1) 30%, var(--l-accent-2) 70%, transparent);
+  opacity: 0.6;
 }
-.l-showcase-visual .l-mock-card { max-width: 300px; padding: 28px 24px; display: flex; flex-direction: column; align-items: center; }
+.l-feature-glow-red, .l-feature-glow-green {
+  position: absolute;
+  width: 320px; height: 320px;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  z-index: 0;
+}
+.l-feature-glow-red   { top: -140px; left: -80px;  background: radial-gradient(circle, var(--l-accent-1) 0%, transparent 70%);   opacity: 0.4; }
+.l-feature-glow-green { top: -140px; right: -80px; background: radial-gradient(circle, var(--l-accent-2) 0%, transparent 70%); opacity: 0.3; }
 
-.l-mock-focus { gap: 20px; }
-.l-mock-session-dots { display: flex; gap: 6px; }
-.l-mock-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--border-default); }
-.l-mock-dot.active { background: var(--amber); }
+.l-feature-head { position: relative; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.l-feature-title { font-size: clamp(19px, 2.4vw, 24px); font-weight: 600; letter-spacing: -0.015em; margin: 0; color: var(--text-1); }
+.l-feature-num { font-family: var(--font-condensed); font-size: 28px; color: var(--text-3); flex-shrink: 0; }
+.l-feature-num .dim { opacity: 0.4; }
+.l-feature-desc { position: relative; z-index: 1; font-size: 14.5px; color: var(--text-2); line-height: 1.6; max-width: 460px; margin: 12px 0 0; }
+
+.l-feature-widget { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; margin-top: 28px; }
+.l-feature-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 16px; border-radius: 999px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  font-size: 12.5px; color: var(--text-2); margin-bottom: -14px; z-index: 1;
+}
+.l-feature-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--l-accent-1); flex-shrink: 0; }
+.l-feature-inner {
+  width: min(100%, 420px);
+  padding: 30px 24px 22px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+.l-feature-inner-gauge { position: relative; padding-top: 34px; }
+.l-gauge-sm { width: 200px; }
+.l-gauge-center-sm { bottom: 26%; }
 .l-mock-pill-btn {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 9px 20px;
@@ -700,13 +864,12 @@ onUnmounted(() => {
   border: none;
   box-shadow: 0 4px 16px var(--amber-soft);
 }
-
-.l-mock-goals { align-items: stretch; gap: 16px; width: 100%; }
+.l-feature-inner-goals { align-items: stretch; gap: 16px; }
 .l-mock-goal { display: flex; flex-direction: column; gap: 8px; }
 .l-mock-goal-head { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-2); font-weight: 500; }
 .l-mock-goal-track { height: 6px; border-radius: 999px; background: var(--border-subtle); overflow: hidden; }
 .l-mock-goal-fill { height: 100%; border-radius: 999px; }
-.l-mock-vision-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; }
+.l-mock-vision-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; width: 100%; }
 .l-mock-vision-tile { aspect-ratio: 1; border-radius: 10px; display: grid; place-items: center; }
 
 .l-mock-heat-grid { display: grid; grid-template-columns: repeat(14, 12px); gap: 3px; }
@@ -774,13 +937,13 @@ onUnmounted(() => {
 .l-footer-row { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px; color: var(--text-3); margin-top: -8px; }
 
 /* Responsive */
-@media (max-width: 900px) {
-  .l-hero { grid-template-columns: 1fr; text-align: center; }
-  .l-hero-copy { max-width: 100%; margin: 0 auto; }
-  .l-cta-row, .l-trust-row { justify-content: center; }
-  .l-sub { margin-left: auto; margin-right: auto; }
-  .l-showcase, .l-showcase.reverse { grid-template-columns: 1fr; text-align: center; }
-  .l-showcase.reverse .l-showcase-copy, .l-showcase.reverse .l-showcase-visual { order: initial; }
-  .l-showcase-desc { margin-left: auto; margin-right: auto; }
+@media (max-width: 640px) {
+  .l-feature-head { flex-direction: column; gap: 4px; }
+  .l-feature-num { align-self: flex-end; margin-top: -28px; }
+  .l-steps-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .l-nav-links { display: none; }
+  .l-nav-pill { justify-content: space-between; }
 }
 </style>
