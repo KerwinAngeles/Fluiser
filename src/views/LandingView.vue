@@ -7,7 +7,7 @@ import { useTheme } from '@/composables/useTheme'
 import { useT } from '@/composables/useLang'
 import {
   SunIcon, MoonIcon, ArrowRightIcon, TimelineIcon, AnalyticsIcon, SparkleIcon,
-  LeafIcon, BookIcon, RunIcon, PlayIcon, PauseIcon, CompassIcon, HeartIcon,
+  LeafIcon, BookIcon, RunIcon, PauseIcon, CompassIcon, HeartIcon,
 } from '@/components/icons/AppIcons'
 
 const auth = useAuthStore()
@@ -290,21 +290,23 @@ onUnmounted(() => {
           :transition="{ duration: 0.6, ease: EASE, delay: 0.1 }"
         >
           <div class="l-mock-card l-mock-focus">
-            <div class="ring-wrap" style="width:136px;height:136px">
-              <svg width="136" height="136" style="transform:rotate(-90deg)">
-                <circle cx="68" cy="68" r="58" stroke-width="8" fill="none" stroke="var(--border-default)" />
-                <circle cx="68" cy="68" r="58" stroke-width="8" fill="none" stroke="var(--amber)" stroke-linecap="round"
-                  stroke-dasharray="364.4" stroke-dashoffset="150" />
+            <div class="l-mock-session-dots">
+              <span v-for="i in 4" :key="i" class="l-mock-dot" :class="{ active: i <= 2 }" />
+            </div>
+            <div class="ring-wrap" style="width:128px;height:128px">
+              <svg width="128" height="128" style="transform:rotate(-90deg)">
+                <circle cx="64" cy="64" r="54" stroke-width="7" fill="none" stroke="var(--border-default)" />
+                <circle cx="64" cy="64" r="54" stroke-width="7" fill="none" stroke="var(--amber)" stroke-linecap="round"
+                  stroke-dasharray="339.3" stroke-dashoffset="140" />
               </svg>
               <div class="ring-text">
-                <div style="font-family:var(--font-display);font-weight:600;font-size:26px;letter-spacing:-0.02em" class="tnum">24:59</div>
+                <div style="font-family:var(--font-display);font-weight:600;font-size:24px;letter-spacing:-0.02em" class="tnum">24:59</div>
                 <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.08em;margin-top:4px">{{ t('Enfoque', 'Focus') }}</div>
               </div>
             </div>
-            <div class="l-mock-focus-controls">
-              <button class="l-mock-round-btn"><PauseIcon :size="15" /></button>
-              <button class="l-mock-round-btn primary"><PlayIcon :size="15" /></button>
-            </div>
+            <button class="l-mock-pill-btn">
+              <PauseIcon :size="13" /> {{ t('Pausar', 'Pause') }}
+            </button>
           </div>
         </motion.div>
       </section>
@@ -600,8 +602,18 @@ onUnmounted(() => {
 .l-trust-sep { color: rgba(255,255,255,0.15); }
 
 /* Hero visual / mock card */
-.l-hero-visual { display: flex; justify-content: center; perspective: 1400px; }
+.l-hero-visual { position: relative; display: flex; justify-content: center; perspective: 1400px; }
+.l-hero-visual::before {
+  content: '';
+  position: absolute;
+  inset: -60px;
+  background: radial-gradient(circle at 50% 45%, var(--accent-glow) 0%, transparent 68%);
+  filter: blur(30px);
+  opacity: 0.55;
+  z-index: -1;
+}
 .l-mock-card {
+  position: relative;
   width: 100%;
   max-width: 320px;
   background: var(--bg-surface);
@@ -610,6 +622,14 @@ onUnmounted(() => {
   box-shadow: var(--shadow-lg), var(--inner-hi);
   overflow: hidden;
   transform-style: preserve-3d;
+}
+.l-mock-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 15%; right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+  z-index: 1;
 }
 .l-mock-nav {
   display: flex; align-items: center; justify-content: space-between;
@@ -655,17 +675,31 @@ onUnmounted(() => {
 .l-showcase-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); font-weight: 600; margin-bottom: 12px; }
 .l-showcase-title { font-family: var(--font-display); font-size: clamp(24px, 3vw, 32px); font-weight: 600; letter-spacing: -0.02em; margin: 0 0 14px; line-height: 1.2; }
 .l-showcase-desc { font-size: 15px; color: var(--text-2); line-height: 1.65; max-width: 420px; margin: 0; }
-.l-showcase-visual { display: flex; justify-content: center; }
-.l-showcase-visual .l-mock-card { max-width: 300px; padding: 24px; display: flex; flex-direction: column; align-items: center; }
-
-.l-mock-focus { gap: 22px; }
-.l-mock-focus-controls { display: flex; gap: 10px; }
-.l-mock-round-btn {
-  width: 40px; height: 40px; border-radius: 50%;
-  display: grid; place-items: center;
-  background: var(--bg-elevated); border: 1px solid var(--border-default); color: var(--text-2);
+.l-showcase-visual { position: relative; display: flex; justify-content: center; }
+.l-showcase-visual::before {
+  content: '';
+  position: absolute;
+  inset: -40px;
+  background: radial-gradient(circle at 50% 45%, var(--accent-glow) 0%, transparent 68%);
+  filter: blur(28px);
+  opacity: 0.4;
+  z-index: -1;
 }
-.l-mock-round-btn.primary { background: var(--amber); color: #0A0B0D; border-color: transparent; }
+.l-showcase-visual .l-mock-card { max-width: 300px; padding: 28px 24px; display: flex; flex-direction: column; align-items: center; }
+
+.l-mock-focus { gap: 20px; }
+.l-mock-session-dots { display: flex; gap: 6px; }
+.l-mock-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--border-default); }
+.l-mock-dot.active { background: var(--amber); }
+.l-mock-pill-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 20px;
+  border-radius: 999px;
+  background: var(--amber); color: #0A0B0D;
+  font-size: 13px; font-weight: 600;
+  border: none;
+  box-shadow: 0 4px 16px var(--amber-soft);
+}
 
 .l-mock-goals { align-items: stretch; gap: 16px; width: 100%; }
 .l-mock-goal { display: flex; flex-direction: column; gap: 8px; }
