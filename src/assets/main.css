@@ -195,7 +195,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 
 /* ============== navbar ============== */
 .navbar {
-  height: 60px;
+  height: 68px;
   background: rgba(10, 11, 13, 0.88);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -227,7 +227,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 }
 .brand-mark-glow {
   position: absolute;
-  width: 52px; height: 52px;
+  width: 58px; height: 58px;
   border-radius: 50%;
   background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
   filter: blur(8px);
@@ -235,7 +235,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
   pointer-events: none;
 }
 .brand-mark {
-  width: 30px; height: 30px; border-radius: 50%;
+  width: 34px; height: 34px; border-radius: 50%;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.10);
   box-shadow:
@@ -250,7 +250,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 .brand-mark::before {
   content: '';
   position: absolute;
-  width: 14px; height: 14px;
+  width: 16px; height: 16px;
   background: var(--accent-glow);
   filter: blur(6px);
   border-radius: 50%;
@@ -261,15 +261,15 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
   border-color: rgba(255,255,255,0.18);
 }
 .brand-symbol {
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1;
   position: relative;
   z-index: 1;
   color: rgba(255,255,255,0.95);
   text-shadow: 0 0 6px var(--accent);
 }
-.brand-name { font-family: var(--font-display); font-weight: 600; font-size: 15px; letter-spacing: -0.02em; }
-.brand-date { font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.brand-name { font-family: var(--font-display); font-weight: 600; font-size: 16px; letter-spacing: -0.02em; }
+.brand-date { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 
 .nav-center {
   display: flex;
@@ -280,7 +280,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 
 .nav-sep {
   width: 1px;
-  height: 18px;
+  height: 20px;
   background: var(--border-subtle);
   margin: 0 4px;
   flex-shrink: 0;
@@ -297,9 +297,9 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 }
 
 .nav-item {
-  display: flex; align-items: center; gap: 7px;
-  padding: 6px 12px; border-radius: 8px;
-  color: var(--text-2); font-size: 13px; font-weight: 500;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 9px;
+  color: var(--text-2); font-size: 14px; font-weight: 500;
   cursor: pointer;
   transition: background var(--transition), color var(--transition);
   user-select: none;
@@ -307,7 +307,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 }
 .nav-item:hover { background: var(--border-subtle); color: var(--text-1); }
 .nav-item.active { background: var(--bg-surface); color: var(--text-1); box-shadow: var(--inner-hi); }
-.nav-item .icon { width: 14px; height: 14px; flex-shrink: 0; opacity: 0.88; }
+.nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.88; }
 
 .nav-section-label { display: none; }
 
@@ -315,9 +315,9 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
   color: var(--text-2);
   background: transparent;
   border: none;
@@ -327,16 +327,16 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 .tc-btn:hover { background: var(--border-subtle); color: var(--text-1); }
 .tc-lang {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
   width: auto;
-  padding: 0 10px;
-  height: 28px;
+  padding: 0 12px;
+  height: 32px;
 }
 .tc-sep {
   width: 1px;
-  height: 14px;
+  height: 16px;
   background: var(--border-default);
   flex-shrink: 0;
 }
@@ -344,9 +344,9 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 .settings-btn {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
   border: none;
   background: transparent;
   color: var(--text-3);
@@ -361,9 +361,9 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
   border: none;
   background: transparent;
   color: var(--text-3);
@@ -375,17 +375,17 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 .user-chip {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 4px 8px;
-  border-radius: 8px;
+  gap: 8px;
+  padding: 5px 9px;
+  border-radius: 9px;
   cursor: pointer;
   transition: background var(--transition);
 }
 .user-chip:hover { background: var(--border-subtle); }
 .avatar {
-  width: 24px; height: 24px; border-radius: 50%;
+  width: 28px; height: 28px; border-radius: 50%;
   background: linear-gradient(135deg, var(--amber), var(--rose));
-  flex-shrink: 0; font-size: 10px; font-weight: 600;
+  flex-shrink: 0; font-size: 11px; font-weight: 600;
   color: rgba(255,255,255,0.9); display: grid; place-items: center;
 }
 

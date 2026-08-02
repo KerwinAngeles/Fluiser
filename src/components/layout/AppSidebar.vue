@@ -91,8 +91,8 @@ function isActive(id: string) {
         @click="dark = !dark"
       >
         <Transition name="tc-icon" mode="out-in">
-          <SunIcon v-if="dark" :key="'sun'" :size="14" />
-          <MoonIcon v-else :key="'moon'" :size="14" />
+          <SunIcon v-if="dark" :key="'sun'" :size="16" />
+          <MoonIcon v-else :key="'moon'" :size="16" />
         </Transition>
       </button>
 
@@ -120,12 +120,12 @@ function isActive(id: string) {
         :title="t('Configuración', 'Settings')"
         @click="router.push('/settings')"
       >
-        <SettingsIcon :size="14" />
+        <SettingsIcon :size="16" />
       </button>
 
       <!-- Logout -->
       <button class="logout-btn" :title="t('Cerrar sesión', 'Sign out')" @click="showLogoutModal = true">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>
         </svg>
       </button>
@@ -162,10 +162,10 @@ function isActive(id: string) {
 
 <style scoped>
 .user-name {
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--text-1);
-  max-width: 120px;
+  max-width: 130px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

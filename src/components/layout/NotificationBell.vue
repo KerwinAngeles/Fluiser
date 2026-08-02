@@ -67,7 +67,7 @@ onUnmounted(() => {
       :title="t('Notificaciones', 'Notifications')"
       @click="toggle"
     >
-      <BellIcon :size="14" />
+      <BellIcon :size="16" />
       <span v-if="unreadCount > 0" class="nb-badge">{{ unreadCount > 9 ? '9+' : unreadCount }}</span>
     </button>
 
