@@ -8,14 +8,14 @@ import { useAuthStore } from '@/stores/auth'
 import { useTheme } from '@/composables/useTheme'
 import { useT } from '@/composables/useLang'
 import {
-  SunIcon, MoonIcon, ArrowRightIcon, TimelineIcon, AnalyticsIcon, SparkleIcon,
+  ArrowRightIcon, TimelineIcon, AnalyticsIcon, SparkleIcon,
   BookIcon, RunIcon, PauseIcon, CompassIcon, HeartIcon,
 } from '@/components/icons/AppIcons'
 
 gsap.registerPlugin(ScrollTrigger)
 
 const auth = useAuthStore()
-const { lang, dark } = useTheme()
+const { lang } = useTheme()
 const t = useT()
 
 const EASE = [0.16, 1, 0.3, 1] as const
@@ -83,7 +83,7 @@ function useGaugeDial(opts: { rx: number; ry: number; cx: number; cy: number; ma
   return reactive({ circumference, path, seconds, display, dashOffset, tip, ticks: tickList, play })
 }
 
-const heroGauge = useGaugeDial({ rx: 400, ry: 280, cx: 500, cy: 295, maxS: 50 * 60, targetS: 42 * 60 + 18, ticks: 25, tickLen: 26 })
+const heroGauge = useGaugeDial({ rx: 300, ry: 300, cx: 320, cy: 320, maxS: 50 * 60, targetS: 42 * 60 + 18, ticks: 25, tickLen: 26 })
 const focusGauge = useGaugeDial({ rx: 85, ry: 85, cx: 100, cy: 100, maxS: 45 * 60, targetS: 17 * 60 + 28, ticks: 17, tickLen: 10 })
 
 const focusCardRef = ref<HTMLElement | null>(null)
@@ -218,7 +218,8 @@ onUnmounted(() => {
       <rect width="100%" height="100%" filter="url(#l-noise-f)" />
     </svg>
 
-    <div class="glow glow-2" />
+    <div class="glow-red" aria-hidden="true" />
+    <div class="glow-green" aria-hidden="true" />
 
     <!-- Nav -->
     <header class="l-nav" :class="{ scrolled }">
@@ -234,10 +235,6 @@ onUnmounted(() => {
           <a href="#consistencia" class="l-nav-link" @click.prevent="scrollToId('consistencia')">{{ t('Consistencia', 'Consistency') }}</a>
         </nav>
         <div class="l-nav-actions">
-          <button class="tc-btn" :title="dark ? t('Modo claro', 'Light mode') : t('Modo oscuro', 'Dark mode')" @click="dark = !dark">
-            <SunIcon v-if="dark" :size="15" />
-            <MoonIcon v-else :size="15" />
-          </button>
           <button class="tc-btn tc-lang" @click="lang = lang === 'es' ? 'en' : 'es'">
             {{ lang === 'es' ? 'EN' : 'ES' }}
           </button>
@@ -251,9 +248,6 @@ onUnmounted(() => {
     <main ref="scrollEl" class="l-scroll">
       <!-- Hero -->
       <section class="l-hero" id="top">
-        <div class="glow-red" aria-hidden="true" />
-        <div class="glow-green" aria-hidden="true" />
-
         <motion.div
           class="l-hero-frame"
           :initial="{ opacity: 0, scale: 0.96 }" :animate="{ opacity: 1, scale: 1 }"
@@ -328,7 +322,7 @@ onUnmounted(() => {
             :initial="{ opacity: 0, y: 24 }" :animate="{ opacity: 1, y: 0 }"
             :transition="{ duration: 0.7, ease: EASE, delay: 0.5 }"
           >
-            <svg class="l-gauge" viewBox="0 0 1000 310" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+            <svg class="l-gauge" viewBox="0 0 640 340" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
               <defs>
                 <linearGradient id="l-gauge-grad" x1="0%" y1="0%" x2="100%" y2="0%">
                   <stop offset="0%" stop-color="#5A99E8" />
@@ -348,11 +342,11 @@ onUnmounted(() => {
               />
               <circle
                 ref="heroTipRef" class="l-gauge-tip-halo"
-                :cx="heroGauge.tip.x" :cy="heroGauge.tip.y" r="16"
+                :cx="heroGauge.tip.x" :cy="heroGauge.tip.y" r="13"
               />
               <circle
                 class="l-gauge-tip-dot"
-                :cx="heroGauge.tip.x" :cy="heroGauge.tip.y" r="7"
+                :cx="heroGauge.tip.x" :cy="heroGauge.tip.y" r="6"
               />
             </svg>
             <div class="l-gauge-center">
@@ -558,15 +552,18 @@ onUnmounted(() => {
   z-index: 3;
 }
 
-.glow {
-  position: absolute;
+/* Ambient wash — fixed to the viewport so it stays consistent behind the nav
+   and every section while scrolling, instead of cutting off at the hero edge. */
+.glow-red, .glow-green {
+  position: fixed;
+  width: 720px; height: 720px;
   border-radius: 50%;
+  filter: blur(130px);
   pointer-events: none;
-  filter: blur(140px);
-  opacity: 0.26;
   z-index: 0;
 }
-.glow-2 { width: 600px; height: 600px; top: 480px; right: -140px; background: radial-gradient(circle, var(--lilac-soft) 0%, transparent 70%); opacity: 0.5; }
+.glow-red   { top: -160px; left: -150px;  background: radial-gradient(circle, var(--l-accent-1) 0%, transparent 70%);   opacity: 0.4; }
+.glow-green { top: -180px; right: -150px; background: radial-gradient(circle, var(--l-accent-2) 0%, transparent 70%); opacity: 0.3; }
 
 /* Nav — floating pill, Leflow-style */
 .l-nav {
@@ -585,17 +582,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   padding: 9px 10px 9px 18px;
-  border-radius: var(--r-full);
-  background: rgba(10, 11, 13, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-  transition: background var(--transition), border-color var(--transition);
-}
-.l-nav.scrolled .l-nav-pill {
-  background: rgba(10, 11, 13, 0.85);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: transparent;
+  border: none;
 }
 .l-brand { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
 .l-brand-mark {
@@ -640,9 +628,14 @@ onUnmounted(() => {
   overflow-y: auto;
   overflow-x: hidden;
   scroll-behavior: smooth;
+  scrollbar-color: var(--border-strong) transparent;
 }
+.l-scroll::-webkit-scrollbar { width: 10px; }
+.l-scroll::-webkit-scrollbar-track { background: transparent; }
+.l-scroll::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+.l-scroll::-webkit-scrollbar-thumb:hover { background: var(--border-strong); background-clip: padding-box; border: 2px solid transparent; }
 
-/* Hero — Leflow-style bezel with ambient red/green glow, fills the screen */
+/* Hero — Leflow-style, fills the screen */
 .l-hero {
   position: relative;
   margin: 0;
@@ -650,16 +643,6 @@ onUnmounted(() => {
   padding: 0;
   display: flex;
 }
-.glow-red, .glow-green {
-  position: absolute;
-  width: 720px; height: 720px;
-  border-radius: 50%;
-  filter: blur(130px);
-  pointer-events: none;
-  z-index: 0;
-}
-.glow-red   { top: -200px; left: -160px;  background: radial-gradient(circle, var(--l-accent-1) 0%, transparent 70%);   opacity: 0.55; }
-.glow-green { top: -220px; right: -160px; background: radial-gradient(circle, var(--l-accent-2) 0%, transparent 70%); opacity: 0.4; }
 
 .l-hero-frame {
   position: relative;
@@ -755,20 +738,20 @@ onUnmounted(() => {
 .l-gauge-label { font-size: 12px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
 .l-gauge-value { font-family: var(--font-condensed); font-weight: 400; font-size: clamp(32px, 6vw, 52px); color: var(--text-1); letter-spacing: 0; }
 
-/* Hero gauge — rounded dial, pinned to the bottom of the frame */
+/* Hero gauge — a true, moderately-sized circular dial, not a stretched ellipse */
 .l-gauge-wrap-hero {
   position: absolute;
   left: 0; right: 0; bottom: 0;
-  width: min(74%, 900px);
+  width: min(92%, 640px);
   max-width: none;
   margin: 0 auto;
   pointer-events: none;
   z-index: 0;
 }
-.l-gauge-wrap-hero .l-gauge-center { bottom: 13%; }
-.l-gauge-wrap-hero .l-gauge-value { font-size: clamp(36px, 5vw, 60px); }
-.l-gauge-wrap-hero .l-gauge-fill { stroke-width: 20; }
-.l-gauge-wrap-hero .l-gauge-track { stroke-width: 20; }
+.l-gauge-wrap-hero .l-gauge-center { bottom: 14%; }
+.l-gauge-wrap-hero .l-gauge-value { font-size: clamp(32px, 4.4vw, 52px); }
+.l-gauge-wrap-hero .l-gauge-fill { stroke-width: 16; }
+.l-gauge-wrap-hero .l-gauge-track { stroke-width: 16; }
 
 /* How it works */
 .l-steps {
