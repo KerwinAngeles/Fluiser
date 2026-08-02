@@ -5,9 +5,9 @@ import { useAuthStore } from '@/stores/auth'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    { path: '/', name: 'landing', component: () => import('@/views/LandingView.vue') },
     { path: '/auth', name: 'auth', component: () => import('@/views/AuthView.vue') },
-    { path: '/', name: 'home', component: DashboardView, meta: { requiresAuth: true } },
-    { path: '/dashboard', redirect: '/' },
+    { path: '/dashboard', name: 'dashboard', component: DashboardView, meta: { requiresAuth: true } },
     { path: '/habits', name: 'habits', component: () => import('@/views/HabitsView.vue'), meta: { requiresAuth: true } },
     { path: '/habits/new', name: 'habit-new', component: () => import('@/views/HabitEditorView.vue'), meta: { requiresAuth: true } },
     { path: '/habits/:id/edit', name: 'habit-edit', component: () => import('@/views/HabitEditorView.vue'), meta: { requiresAuth: true } },
@@ -21,7 +21,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   const auth = useAuthStore()
   if (to.meta.requiresAuth && !auth.user) return '/auth'
-  if (to.path === '/auth' && auth.user) return '/'
+  if ((to.path === '/auth' || to.path === '/') && auth.user) return '/dashboard'
 })
 
 export default router

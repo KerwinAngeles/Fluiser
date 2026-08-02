@@ -47,7 +47,7 @@ const navItems = computed(() => [
 ])
 
 function isActive(id: string) {
-  return route.path.startsWith(`/${id}`) || (id === 'dashboard' && route.path === '/')
+  return route.path.startsWith(`/${id}`)
 }
 </script>
 
