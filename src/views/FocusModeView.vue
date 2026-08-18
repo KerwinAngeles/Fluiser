@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, computed } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT, useMonths } from '@/composables/useLang'
 import { useToday } from '@/composables/useToday'
+import { useStartHabitTimer } from '@/composables/useStartHabitTimer'
 import { ICON_MAP, ArrowLeftIcon, ClockIcon } from '@/components/icons/AppIcons'
 import HabitRow from '@/components/ui/HabitRow.vue'
 import type { Habit } from '@/types'
@@ -11,13 +12,21 @@ const emit = defineEmits<{ exit: [] }>()
 const store = useFluiserStore()
 const t = useT()
 const months = useMonths()
+const { startHabitTimer } = useStartHabitTimer()
 
 const { today } = useToday()
 const todayDate = computed(() => new Date(today.value + 'T00:00:00'))
 const due = computed(() => store.dueToday)
 const progress = computed(() => store.todayProgress)
+const runningRemaining = computed(() => store.timerState?.remaining ?? 0)
 
 function handleToggle(habit: Habit) { store.toggleHabit(habit.id) }
+
+function mmss(totalSec: number): string {
+  const m = String(Math.floor(totalSec / 60)).padStart(2, '0')
+  const s = String(totalSec % 60).padStart(2, '0')
+  return `${m}:${s}`
+}
 
 function onKey(e: KeyboardEvent) { if (e.key === 'Escape') emit('exit') }
 onMounted(() => document.addEventListener('keydown', onKey))
@@ -66,7 +75,15 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
               <div class="text-[15px] font-medium text-text-1">{{ h.name }}</div>
               <div class="text-text-3 text-xs mt-0.5">{{ h.timer.sessions }}×{{ h.timer.duration }} min</div>
             </div>
-            <button class="btn btn-primary btn-sm gap-1.5" @click="store.startTimer(h)">
+            <button
+              v-if="store.activeTimer?.id === h.id"
+              class="btn btn-sm gap-1.5 bg-accent-soft text-accent border-transparent"
+              @click="store.expandTimer()"
+            >
+              <ClockIcon :size="12" />
+              {{ store.timerState?.paused ? t('Pausado', 'Paused') : t('En marcha', 'Running') }} · {{ mmss(runningRemaining) }}
+            </button>
+            <button v-else class="btn btn-primary btn-sm gap-1.5" @click="startHabitTimer(h)">
               <ClockIcon :size="12" /> {{ t('Iniciar →', 'Start →') }}
             </button>
           </div>

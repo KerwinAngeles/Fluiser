@@ -31,6 +31,33 @@ const TONE_ACCENT: Record<string, string> = {
   lilac: '#B8A8E0',
 }
 
+// Document PiP gives us a real window with real DOM — the canvas above still
+// draws the ring/status exactly as before, this just adds a strip of actual
+// clickable buttons underneath it so pause/skip/finish/continue work without
+// switching back to the tab. Classic video PiP (the fallback for browsers
+// without documentPictureInPicture) can't host real controls at all — a
+// <video> only exposes whatever the browser's own overlay chooses to render.
+const DOC_PIP_CONTROLS_HEIGHT = 64
+
+const PIP_DOC_STYLES = `
+  html, body { margin: 0; padding: 0; overflow: hidden; background: ${PALETTE.bgBottom}; }
+  .fpc-bar {
+    display: flex; align-items: center; gap: 8px;
+    height: ${DOC_PIP_CONTROLS_HEIGHT}px; padding: 0 14px; box-sizing: border-box;
+    background: ${PALETTE.bgBottom}; border-top: 1px solid rgba(255,255,255,0.08);
+    font-family: ${FONT};
+  }
+  .fpc-btn {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    height: 36px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.05); color: #fff;
+    font: 600 12.5px ${FONT}; cursor: pointer; white-space: nowrap;
+  }
+  .fpc-btn:hover { background: rgba(255,255,255,0.1); }
+  .fpc-btn-primary { background: var(--fpc-accent, ${TONE_ACCENT.sky}); border-color: transparent; color: #0A0B0D; }
+  .fpc-btn-primary:hover { filter: brightness(0.94); }
+`
+
 function darken(hex: string, factor: number): string {
   const h = hex.replace('#', '')
   const r = Math.round(parseInt(h.substring(0, 2), 16) * factor)
@@ -90,15 +117,29 @@ function drawSessionPills(ctx: CanvasRenderingContext2D, x: number, y: number, s
 }
 
 export function useTimerPip() {
-  // Classic <video> Picture-in-Picture instead of the newer Document PiP API:
-  // it's supported far more broadly (Chrome, Edge and Safari, going back
-  // years) than window.documentPictureInPicture, which is still Chrome/Edge
-  // 116+ only and inconsistent in the wild. We draw the timer onto a canvas,
-  // turn it into a live video via captureStream(), and PiP that video.
-  const supported = typeof document !== 'undefined'
+  // Prefer Document PiP when it's genuinely available — it's the only way to
+  // get real, clickable controls (pause, skip, finish, continue) in the
+  // floating window instead of just a picture. It was previously dropped in
+  // favor of classic video PiP for reliability (Chrome/Edge 116+ only, and
+  // inconsistent even there), so it's used here as a progressive enhancement
+  // only: any failure at any point falls straight through to the classic
+  // <video> PiP below, which stays exactly as reliable as before.
+  const documentPipSupported = typeof window !== 'undefined'
+    && 'documentPictureInPicture' in window
+    && typeof (window as unknown as { documentPictureInPicture?: DocumentPictureInPicture })
+      .documentPictureInPicture?.requestWindow === 'function'
+
+  // Classic <video> Picture-in-Picture — supported far more broadly (Chrome,
+  // Edge and Safari, going back years). We draw the timer onto a canvas,
+  // turn it into a live video via captureStream(), and PiP that video. Only
+  // the browser's own minimal overlay controls (play/pause, and whatever
+  // Media Session actions are registered below) are available in this mode.
+  const videoPipSupported = typeof document !== 'undefined'
     && document.pictureInPictureEnabled === true
     && typeof HTMLVideoElement !== 'undefined'
     && 'requestPictureInPicture' in HTMLVideoElement.prototype
+
+  const supported = documentPipSupported || videoPipSupported
 
   const active = ref(false)
   const store = useFluiserStore()
@@ -109,6 +150,8 @@ export function useTimerPip() {
   let video: HTMLVideoElement | null = null
   let drawInterval: ReturnType<typeof setInterval> | null = null
   let bgGradient: CanvasGradient | null = null
+  let pipWindow: Window | null = null
+  let controlsEl: HTMLDivElement | null = null
 
   function ensureCanvas() {
     if (canvas) return
@@ -324,8 +367,57 @@ export function useTimerPip() {
     return v
   }
 
+  function iconBtn(label: string, onClick: () => void, primary = false): HTMLButtonElement {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = primary ? 'fpc-btn fpc-btn-primary' : 'fpc-btn'
+    btn.textContent = label
+    btn.addEventListener('click', onClick)
+    return btn
+  }
+
+  // Mirrors TimerView's in-app controls per phase. Review is the one
+  // exception — saving needs the energy picker/note field, too much for a
+  // button strip, so it just offers a way back into the app instead.
+  function renderControls() {
+    if (!controlsEl) return
+    controlsEl.innerHTML = ''
+    const ts = store.timerState
+    const habit = store.activeTimer
+    if (!ts || !habit) return
+
+    const toneKey = ts.phase === 'break' || (ts.phase === 'gate' && ts.pendingPhase === 'break') ? 'mint' : habit.tone
+    controlsEl.style.setProperty('--fpc-accent', TONE_ACCENT[toneKey] ?? TONE_ACCENT.sky)
+
+    if (ts.phase === 'gate') {
+      const label = ts.pendingPhase === 'break'
+        ? t('▶ Comenzar pausa', '▶ Start break')
+        : t(`▶ Comenzar sesión ${ts.currentSession + 1}`, `▶ Start session ${ts.currentSession + 1}`)
+      controlsEl.append(iconBtn(label, () => store.continueGate(), true))
+    } else if (ts.phase === 'flow-check') {
+      controlsEl.append(
+        iconBtn(t('🌊 +5 min', '🌊 +5 min'), () => store.continueFlow(), true),
+        iconBtn(t('Terminar', 'Finish'), () => store.finishTimerNow()),
+      )
+    } else if (ts.phase === 'review') {
+      controlsEl.append(iconBtn(t('Revisar y guardar en la app →', 'Review and save in the app →'), () => store.expandTimer(), true))
+    } else {
+      controlsEl.append(
+        iconBtn(ts.paused ? t('▶ Reanudar', '▶ Resume') : t('‖ Pausar', '‖ Pause'), () => (ts.paused ? store.resumeTimer() : store.pauseTimer()), true),
+        iconBtn(t('Saltar', 'Skip'), () => store.skipTimerSession()),
+        iconBtn(t('Terminar', 'Finish'), () => store.finishTimerNow()),
+      )
+    }
+  }
+
   function close() {
     if (drawInterval) { clearInterval(drawInterval); drawInterval = null }
+    if (pipWindow) {
+      const w = pipWindow
+      pipWindow = null
+      controlsEl = null
+      try { w.close() } catch { /* already closed */ }
+    }
     if (document.pictureInPictureElement) {
       document.exitPictureInPicture().catch(() => { /* already closed */ })
     }
@@ -334,6 +426,40 @@ export function useTimerPip() {
 
   async function open() {
     if (!supported || active.value) return
+
+    if (documentPipSupported) {
+      let win: Window | null = null
+      try {
+        ensureCanvas()
+        draw()
+        const dpip = (window as unknown as { documentPictureInPicture: DocumentPictureInPicture }).documentPictureInPicture
+        win = await dpip.requestWindow({ width: PIP_WIDTH, height: PIP_HEIGHT + DOC_PIP_CONTROLS_HEIGHT })
+        const style = win.document.createElement('style')
+        style.textContent = PIP_DOC_STYLES
+        win.document.head.append(style)
+        win.document.body.append(canvas!)
+        controlsEl = win.document.createElement('div')
+        controlsEl.className = 'fpc-bar'
+        win.document.body.append(controlsEl)
+        renderControls()
+        pipWindow = win
+        win.addEventListener('pagehide', () => close(), { once: true })
+        active.value = true
+        if (!drawInterval) drawInterval = setInterval(draw, 500)
+        return
+      } catch {
+        pipWindow = null
+        controlsEl = null
+        if (win) { try { win.close() } catch { /* ignore */ } }
+        // The canvas may have been moved into the failed window's document —
+        // rebuild it fresh so the classic PiP fallback below starts clean.
+        canvas = null
+        ctx2d = null
+        bgGradient = null
+      }
+    }
+
+    if (!videoPipSupported) return
     try {
       const v = ensureVideo()
       await v.play()
@@ -387,10 +513,36 @@ export function useTimerPip() {
   watch(() => store.timerMinimized, (min) => { if (!min) close() })
   watch(() => [store.timerState?.phase, store.timerState?.paused, store.activeTimer?.id], syncMediaSession, { immediate: true })
 
+  // Rebuild the Document PiP button strip whenever the state it depends on
+  // changes — the 500ms draw() interval only repaints the canvas, this keeps
+  // the real buttons (label, which ones show) in sync with the phase.
+  watch(
+    () => [store.timerState?.phase, store.timerState?.paused, store.timerState?.pendingPhase, store.timerState?.currentSession],
+    () => { if (controlsEl) renderControls() },
+  )
+
   if ('mediaSession' in navigator) {
     try { navigator.mediaSession.setActionHandler('enterpictureinpicture', () => { open().catch(() => {}) }) } catch { /* unsupported */ }
-    try { navigator.mediaSession.setActionHandler('play', () => store.resumeTimer()) } catch { /* unsupported */ }
+    // Best-effort controls for classic video PiP, which only exposes
+    // whatever Media Session actions the browser chooses to render (usually
+    // play/pause plus a next/previous pair) — Document PiP above gets real
+    // labeled buttons instead and doesn't rely on any of this.
+    try {
+      navigator.mediaSession.setActionHandler('play', () => {
+        if (store.timerState?.phase === 'gate') store.continueGate()
+        else store.resumeTimer()
+      })
+    } catch { /* unsupported */ }
     try { navigator.mediaSession.setActionHandler('pause', () => store.pauseTimer()) } catch { /* unsupported */ }
+    try {
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        const ts = store.timerState
+        if (!ts) return
+        if (ts.phase === 'gate') store.continueGate()
+        else if (ts.phase === 'flow-check') store.finishTimerNow()
+        else store.skipTimerSession()
+      })
+    } catch { /* unsupported */ }
   }
 
   return { supported, active, toggle }

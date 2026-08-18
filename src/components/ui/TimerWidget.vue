@@ -2,12 +2,27 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
+import { useConfirm } from '@/composables/useConfirm'
 import { useTimerPip } from '@/composables/useTimerPip'
 import { ICON_MAP, CheckIcon, PlayIcon, PauseIcon, PipIcon } from '@/components/icons/AppIcons'
 
 const store = useFluiserStore()
 const t     = useT()
 const pip   = useTimerPip()
+const { confirm } = useConfirm()
+
+async function finishSession() {
+  const confirmed = await confirm({
+    title: t('¿Terminar la sesión?', 'End the session?'),
+    message: t(
+      'Vas a cerrarla antes de tiempo. Vas a poder revisar y guardar tu progreso igual.',
+      "You're ending it early. You'll still be able to review and save your progress.",
+    ),
+    confirmLabel: t('Terminar', 'End'),
+    cancelLabel: t('Seguir', 'Keep going'),
+  })
+  if (confirmed) store.finishTimerNow()
+}
 
 const ts             = computed(() => store.timerState)
 const habit          = computed(() => store.activeTimer)
@@ -219,7 +234,7 @@ const widgetStyle = computed(() =>
             @click.stop="store.continueFlow()" :title="t('+5 min flujo', '+5 min flow')">
             +5
           </button>
-          <button class="tw-btn" @click.stop="store.finishTimerNow()" :title="t('Terminar', 'Finish')">
+          <button class="tw-btn" @click.stop="finishSession" :title="t('Terminar', 'Finish')">
             <CheckIcon :size="11" />
           </button>
         </template>

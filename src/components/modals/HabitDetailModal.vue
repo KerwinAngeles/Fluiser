@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT, useCatLabel } from '@/composables/useLang'
+import { useStartHabitTimer } from '@/composables/useStartHabitTimer'
 import { ICON_MAP, XIcon, ClockIcon } from '@/components/icons/AppIcons'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import EnergyPicker from '@/components/ui/EnergyPicker.vue'
@@ -13,6 +14,7 @@ const emit = defineEmits<{ close: [] }>()
 const store = useFluiserStore()
 const t = useT()
 const catLabel = useCatLabel()
+const { startHabitTimer } = useStartHabitTimer()
 
 const energy = ref<Energy>('auto')
 const note = ref('')
@@ -49,7 +51,7 @@ function uncomplete() {
 function startTimer() {
   if (!props.habit) return
   emit('close')
-  store.startTimer(props.habit)
+  startHabitTimer(props.habit)
 }
 
 const notePlaceholder = computed(() =>
