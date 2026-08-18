@@ -58,6 +58,7 @@ function energyInfo(id: string) {
                   :style="{ background: `var(--${energyInfo(s.energy)!.tone}-soft)`, color: `var(--${energyInfo(s.energy)!.tone})` }"
                 >{{ energyInfo(s.energy)!.label }}</span>
                 <span v-if="s.flowExtensions > 0" class="sh-flow-badge">🌊 +{{ s.flowExtensions * 5 }}m</span>
+                <span v-if="s.pausedSec > 0" class="sh-flow-badge">⏸ {{ fmtDur(s.pausedSec) }}{{ s.pauseCount > 1 ? ` · ${s.pauseCount}x` : '' }}</span>
               </div>
             </div>
             <div v-if="s.journey.length > 1" class="sh-journey">

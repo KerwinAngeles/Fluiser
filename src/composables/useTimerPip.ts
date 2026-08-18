@@ -37,26 +37,63 @@ const TONE_ACCENT: Record<string, string> = {
 // switching back to the tab. Classic video PiP (the fallback for browsers
 // without documentPictureInPicture) can't host real controls at all — a
 // <video> only exposes whatever the browser's own overlay chooses to render.
-const DOC_PIP_CONTROLS_HEIGHT = 64
+const DOC_PIP_CONTROLS_HEIGHT = 60
 
+// Document PiP windows are freely resizable by the OS window chrome — the
+// user shrinking the window (which reads as "minimizing" it) must never clip
+// the controls out of view. The body is a flex column with the canvas as the
+// only *shrinkable* region (CSS-scaled, never scrolled/hidden) and the
+// button bar pinned at a fixed height, so the buttons stay visible and
+// clickable at any window size instead of overflowing past `overflow:hidden`.
 const PIP_DOC_STYLES = `
-  html, body { margin: 0; padding: 0; overflow: hidden; background: ${PALETTE.bgBottom}; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: ${PALETTE.bgBottom}; }
+  body { display: flex; flex-direction: column; }
+  .fpc-canvas-wrap {
+    flex: 1 1 auto; min-height: 0; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fpc-canvas-wrap canvas { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; }
   .fpc-bar {
-    display: flex; align-items: center; gap: 8px;
+    flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
     height: ${DOC_PIP_CONTROLS_HEIGHT}px; padding: 0 14px; box-sizing: border-box;
     background: ${PALETTE.bgBottom}; border-top: 1px solid rgba(255,255,255,0.08);
     font-family: ${FONT};
   }
+  /* Compact icon buttons (pause/skip/finish) — tooltip carries the label */
   .fpc-btn {
-    flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
-    height: 36px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.14);
+    flex: 0 0 auto; width: 42px; height: 42px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 11px; border: 1px solid rgba(255,255,255,0.14);
     background: rgba(255,255,255,0.05); color: #fff;
-    font: 600 12.5px ${FONT}; cursor: pointer; white-space: nowrap;
+    cursor: pointer; padding: 0;
   }
   .fpc-btn:hover { background: rgba(255,255,255,0.1); }
   .fpc-btn-primary { background: var(--fpc-accent, ${TONE_ACCENT.sky}); border-color: transparent; color: #0A0B0D; }
   .fpc-btn-primary:hover { filter: brightness(0.94); }
+  .fpc-btn svg { width: 16px; height: 16px; }
+  /* Wide labeled button — only used where a single action needs to stay
+     unambiguous (gate/review), so there's no crowding to solve there. */
+  .fpc-btn-wide {
+    flex: 1 1 auto; width: auto; height: 38px; padding: 0 16px; gap: 6px;
+    border-radius: 9px; font: 600 12.5px ${FONT}; white-space: nowrap;
+  }
+  .fpc-btn-wide svg { width: 14px; height: 14px; flex-shrink: 0; }
 `
+
+function svgIcon(inner: string): string {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`
+}
+
+// Mirrors the paths used by PlayIcon/PauseIcon/SkipFwdIcon/CheckIcon in
+// AppIcons.ts — duplicated here as raw markup since this window's DOM is
+// built with vanilla JS, outside Vue's render tree.
+const ICON = {
+  play: svgIcon('<polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none"/>'),
+  pause: svgIcon('<rect x="6" y="4" width="4" height="16" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" fill="currentColor" stroke="none"/>'),
+  skip: svgIcon('<polygon points="5 4 15 12 5 20 5 4" fill="currentColor" stroke="none"/><line x1="19" y1="5" x2="19" y2="19"/>'),
+  check: svgIcon('<path d="M5 12.5l4.5 4.5L19 7"/>'),
+}
 
 function darken(hex: string, factor: number): string {
   const h = hex.replace('#', '')
@@ -367,11 +404,28 @@ export function useTimerPip() {
     return v
   }
 
-  function iconBtn(label: string, onClick: () => void, primary = false): HTMLButtonElement {
+  // Compact square icon button — used wherever multiple controls sit side by
+  // side (the crowded case), so the label lives in the tooltip/aria-label
+  // instead of taking up width.
+  function iconBtn(icon: string, label: string, onClick: () => void, primary = false): HTMLButtonElement {
     const btn = document.createElement('button')
     btn.type = 'button'
     btn.className = primary ? 'fpc-btn fpc-btn-primary' : 'fpc-btn'
-    btn.textContent = label
+    btn.title = label
+    btn.setAttribute('aria-label', label)
+    btn.innerHTML = icon
+    btn.addEventListener('click', onClick)
+    return btn
+  }
+
+  // Wide labeled button — only ever the sole control on screen (gate/review),
+  // so there's room for text and it's worth keeping since which action
+  // applies (start break vs. start session N) isn't obvious from an icon.
+  function wideBtn(icon: string, label: string, onClick: () => void, primary = false): HTMLButtonElement {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = primary ? 'fpc-btn fpc-btn-wide fpc-btn-primary' : 'fpc-btn fpc-btn-wide'
+    btn.innerHTML = icon + `<span>${label}</span>`
     btn.addEventListener('click', onClick)
     return btn
   }
@@ -391,21 +445,26 @@ export function useTimerPip() {
 
     if (ts.phase === 'gate') {
       const label = ts.pendingPhase === 'break'
-        ? t('▶ Comenzar pausa', '▶ Start break')
-        : t(`▶ Comenzar sesión ${ts.currentSession + 1}`, `▶ Start session ${ts.currentSession + 1}`)
-      controlsEl.append(iconBtn(label, () => store.continueGate(), true))
+        ? t('Comenzar pausa', 'Start break')
+        : t(`Comenzar sesión ${ts.currentSession + 1}`, `Start session ${ts.currentSession + 1}`)
+      controlsEl.append(wideBtn(ICON.play, label, () => store.continueGate(), true))
     } else if (ts.phase === 'flow-check') {
       controlsEl.append(
-        iconBtn(t('🌊 +5 min', '🌊 +5 min'), () => store.continueFlow(), true),
-        iconBtn(t('Terminar', 'Finish'), () => store.finishTimerNow()),
+        wideBtn('🌊', t('+5 min', '+5 min'), () => store.continueFlow(), true),
+        iconBtn(ICON.check, t('Terminar', 'Finish'), () => store.finishTimerNow()),
       )
     } else if (ts.phase === 'review') {
-      controlsEl.append(iconBtn(t('Revisar y guardar en la app →', 'Review and save in the app →'), () => store.expandTimer(), true))
+      controlsEl.append(wideBtn('→', t('Revisar y guardar en la app', 'Review and save in the app'), () => store.expandTimer(), true))
     } else {
       controlsEl.append(
-        iconBtn(ts.paused ? t('▶ Reanudar', '▶ Resume') : t('‖ Pausar', '‖ Pause'), () => (ts.paused ? store.resumeTimer() : store.pauseTimer()), true),
-        iconBtn(t('Saltar', 'Skip'), () => store.skipTimerSession()),
-        iconBtn(t('Terminar', 'Finish'), () => store.finishTimerNow()),
+        iconBtn(
+          ts.paused ? ICON.play : ICON.pause,
+          ts.paused ? t('Reanudar', 'Resume') : t('Pausar', 'Pause'),
+          () => (ts.paused ? store.resumeTimer() : store.pauseTimer()),
+          true,
+        ),
+        iconBtn(ICON.skip, t('Saltar', 'Skip'), () => store.skipTimerSession()),
+        iconBtn(ICON.check, t('Terminar', 'Finish'), () => store.finishTimerNow()),
       )
     }
   }
@@ -437,7 +496,10 @@ export function useTimerPip() {
         const style = win.document.createElement('style')
         style.textContent = PIP_DOC_STYLES
         win.document.head.append(style)
-        win.document.body.append(canvas!)
+        const canvasWrap = win.document.createElement('div')
+        canvasWrap.className = 'fpc-canvas-wrap'
+        canvasWrap.append(canvas!)
+        win.document.body.append(canvasWrap)
         controlsEl = win.document.createElement('div')
         controlsEl.className = 'fpc-bar'
         win.document.body.append(controlsEl)

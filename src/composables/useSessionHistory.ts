@@ -34,6 +34,8 @@ export function useSessionHistory(habitId: string) {
         energy: r.energy,
         note: r.note ?? '',
         flowExtensions: r.flow_extensions ?? 0,
+        pausedSec: r.paused_sec ?? 0,
+        pauseCount: r.pause_count ?? 0,
         journey: r.journey ?? [],
       }))
     } finally {
@@ -63,6 +65,8 @@ export function useSessionHistory(habitId: string) {
       energy: session.energy,
       note: session.note,
       flow_extensions: session.flowExtensions,
+      paused_sec: session.pausedSec,
+      pause_count: session.pauseCount,
       journey: session.journey,
     })
     if (error) console.error('addSession', error)

@@ -149,6 +149,8 @@ export interface StoredSession {
   energy: Energy
   note: string
   flowExtensions: number
+  pausedSec: number    // total time spent paused during this session — sum of 'pause' segments in journey
+  pauseCount: number   // how many separate times the session was paused
   journey: Array<{ type: TimerSegmentType; durationSec: number }>
 }
 
