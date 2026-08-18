@@ -9,7 +9,10 @@ import SessionJourney from '@/components/ui/SessionJourney.vue'
 
 const store = useFluiserStore()
 const t = useT()
-const { loading, activeFilter, byDate, habitStats, weekStats, load } = useFlowJournal()
+const { loading, activeFilter, byDate, habitStats, weekStats, topPausedHabitId, progressStats, load } = useFlowJournal()
+
+const topPausedHabit = computed(() => topPausedHabitId.value ? habitById(topPausedHabitId.value) : null)
+const topPausedHabitCount = computed(() => topPausedHabitId.value ? habitStats.value.get(topPausedHabitId.value)?.weekPauseCount ?? 0 : 0)
 
 onMounted(() => load())
 
@@ -91,6 +94,9 @@ function weekRingOffset(habitId: string, targetSec: number) {
         <div class="fj-stat-icon">🎯</div>
         <div class="fj-stat-val">{{ weekStats.weekCount }}</div>
         <div class="fj-stat-label">{{ t('sesiones', 'sessions') }}</div>
+        <div v-if="weekStats.weekCount > 0" class="fj-stat-trend up">
+          {{ Math.round(weekStats.cleanPct * 100) }}% {{ t('sin pausas', 'no pauses') }}
+        </div>
       </div>
 
       <div class="fj-stat-card fj-stat-flow">
@@ -98,6 +104,45 @@ function weekRingOffset(habitId: string, targetSec: number) {
         <div class="fj-stat-val">{{ weekStats.flowSec > 0 ? fmtHM(weekStats.flowSec) : '—' }}</div>
         <div class="fj-stat-label">{{ t('en flujo', 'in flow') }}</div>
       </div>
+
+      <div class="fj-stat-card fj-stat-paused">
+        <div class="fj-stat-icon">⏸</div>
+        <div class="fj-stat-val">{{ weekStats.weekPausedSec > 0 ? fmtHM(weekStats.weekPausedSec) : '—' }}</div>
+        <div class="fj-stat-label">{{ t('pausado', 'paused') }}</div>
+        <!-- Inverted vs the focus-time trend: pausing MORE is the "down" color here. -->
+        <div v-if="weekStats.pauseTrend !== null" class="fj-stat-trend" :class="weekStats.pauseTrend > 0 ? 'down' : 'up'">
+          {{ weekStats.pauseTrend >= 0 ? '↑' : '↓' }} {{ Math.abs(weekStats.pauseTrend) }}% vs semana pasada
+        </div>
+      </div>
+    </div>
+
+    <!-- ── "¿ESTÁ FUNCIONANDO?" PROGRESS ── -->
+    <div class="fj-progress-row">
+      <div class="fj-stat-card fj-stat-consistency">
+        <div class="fj-stat-icon">📈</div>
+        <div class="fj-stat-val">{{ Math.round(progressStats.recentPct * 100) }}%</div>
+        <div class="fj-stat-label">{{ t('consistencia (últimas 4 semanas)', 'consistency (last 4 weeks)') }}</div>
+        <div v-if="progressStats.consistencyTrend !== null" class="fj-stat-trend" :class="progressStats.consistencyTrend >= 0 ? 'up' : 'down'">
+          {{ progressStats.consistencyTrend >= 0 ? '↑' : '↓' }} {{ Math.abs(progressStats.consistencyTrend) }}% {{ t('vs 4 semanas anteriores', 'vs previous 4 weeks') }}
+        </div>
+      </div>
+
+      <div class="fj-stat-card fj-stat-formed">
+        <div class="fj-stat-icon">🌱</div>
+        <div class="fj-stat-val">{{ progressStats.formedCount }}/{{ progressStats.totalHabits }}</div>
+        <div class="fj-stat-label">{{ t(`hábitos con ${progressStats.formedStreakDays}+ días de racha`, `habits with a ${progressStats.formedStreakDays}+ day streak`) }}</div>
+      </div>
+    </div>
+
+    <!-- ── TOP-PAUSED HABIT CALLOUT ── -->
+    <div v-if="topPausedHabit && topPausedHabitCount > 1" class="fj-callout">
+      <span class="fj-callout-icon">⏸</span>
+      <span>
+        {{ t(
+          `"${topPausedHabit.name}" es tu hábito con más interrupciones esta semana — ${topPausedHabitCount} pausas.`,
+          `"${topPausedHabit.name}" is your most-interrupted habit this week — ${topPausedHabitCount} pauses.`
+        ) }}
+      </span>
     </div>
 
     <!-- ── HABIT ORBIT STRIP ── -->
@@ -217,9 +262,12 @@ function weekRingOffset(habitId: string, targetSec: number) {
                   <SessionJourney :segments="s.journey" :tone="habitById(s.habitId)?.tone ?? 'sky'" />
                 </div>
 
-                <!-- Note + flow badge -->
-                <div v-if="s.note || s.flowExtensions > 0" class="fj-card-footer">
+                <!-- Note + flow/pause badges -->
+                <div v-if="s.note || s.flowExtensions > 0 || s.pausedSec > 0" class="fj-card-footer">
                   <span v-if="s.flowExtensions > 0" class="fj-flow-tag">🌊 +{{ s.flowExtensions * 5 }} min en flujo</span>
+                  <span v-if="s.pausedSec > 0" class="fj-pause-tag">
+                    ⏸ {{ fmtHM(s.pausedSec) }} {{ s.pauseCount > 1 ? `· ${s.pauseCount}x` : '' }}
+                  </span>
                   <span v-if="s.note" class="fj-note">"{{ s.note }}"</span>
                 </div>
               </div>
@@ -255,7 +303,7 @@ function weekRingOffset(habitId: string, targetSec: number) {
 /* ── Stats row ── */
 .fj-stats-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
   gap: 12px;
   margin-bottom: 28px;
 }
@@ -277,6 +325,9 @@ function weekRingOffset(habitId: string, targetSec: number) {
 }
 .fj-stat-flow {
   background: linear-gradient(135deg, var(--amber-soft) 0%, var(--bg-surface) 100%);
+}
+.fj-stat-paused {
+  background: linear-gradient(135deg, var(--lilac-soft) 0%, var(--bg-surface) 100%);
 }
 .fj-stat-icon { font-size: 16px; margin-bottom: 4px; }
 .fj-stat-val {
@@ -300,6 +351,36 @@ function weekRingOffset(habitId: string, targetSec: number) {
   .fj-stats-row { grid-template-columns: 1fr 1fr; }
   .fj-stat-focus { grid-column: 1 / -1; }
 }
+
+/* ── Progress row ("is this working?") ── */
+.fj-progress-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.fj-stat-consistency {
+  background: linear-gradient(135deg, var(--rose-soft) 0%, var(--bg-surface) 100%);
+}
+.fj-stat-formed {
+  background: linear-gradient(135deg, var(--mint-soft) 0%, var(--bg-surface) 100%);
+}
+
+/* ── Insight callout ── */
+.fj-callout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  font-size: 12.5px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-bottom: 28px;
+}
+.fj-callout-icon { flex-shrink: 0; font-size: 15px; }
 
 /* ── Habit orbit strip ── */
 .fj-habits-section { margin-bottom: 28px; }
@@ -499,6 +580,15 @@ function weekRingOffset(habitId: string, targetSec: number) {
   background: var(--amber-soft);
   padding: 2px 8px;
   border-radius: 999px;
+}
+.fj-pause-tag {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--lilac);
+  background: var(--lilac-soft);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
 }
 .fj-note {
   font-size: 12px;

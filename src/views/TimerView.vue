@@ -99,6 +99,8 @@ function completeHabit() {
   const sessionDate = sessionStartDate.value
   const segs = reviewJourney.value
   const actualSec = segs.filter((s) => s.type !== 'pause').reduce((sum, s) => sum + s.durationSec, 0)
+  const pauseSegs = segs.filter((s) => s.type === 'pause')
+  const pausedSec = pauseSegs.reduce((sum, s) => sum + s.durationSec, 0)
   const { addSession } = useSessionHistory(habitId)
   addSession({
     date: sessionDate,
@@ -108,6 +110,8 @@ function completeHabit() {
     energy: energy.value,
     note: note.value,
     flowExtensions: ts.value.flowExtensions,
+    pausedSec,
+    pauseCount: pauseSegs.length,
     journey: segs,
   }).catch(console.error)
   store.toggleHabit(habitId, sessionDate, { energy: energy.value, note: note.value })
