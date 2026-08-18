@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useFluiserStore, ymd } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
+import { useConfirm } from '@/composables/useConfirm'
+import { useToday } from '@/composables/useToday'
 import { useSessionHistory } from '@/composables/useSessionHistory'
 import { ICON_MAP, CheckIcon, XIcon, ChevronDownIcon, SkipFwdIcon, PlayIcon } from '@/components/icons/AppIcons'
 import EnergyPicker from '@/components/ui/EnergyPicker.vue'
@@ -10,8 +12,15 @@ import type { Energy } from '@/types'
 
 const store = useFluiserStore()
 const t = useT()
+const { confirm } = useConfirm()
+const { today: todayStr } = useToday()
 const habit = computed(() => store.activeTimer!)
 const ts    = computed(() => store.timerState!)
+
+const sessionStartDate = computed(() =>
+  ts.value?.startedDate ?? ymd(new Date(ts.value?.journey[0]?.startAt ?? Date.now())),
+)
+const isPastDaySession = computed(() => sessionStartDate.value !== todayStr.value)
 
 const phase          = computed(() => ts.value?.phase ?? 'work')
 const remaining      = computed(() => ts.value?.remaining ?? 0)
@@ -84,11 +93,15 @@ const fcDash  = computed(() => FC_CIRC * (remaining.value / 12))
 function completeHabit() {
   if (!habit.value || !ts.value) return
   const habitId = habit.value.id
+  // Attribute the session to the day it actually happened, not the day it
+  // gets saved — matters when the user closes out a session left open from
+  // a previous day (see store.isStaleTimer).
+  const sessionDate = sessionStartDate.value
   const segs = reviewJourney.value
   const actualSec = segs.filter((s) => s.type !== 'pause').reduce((sum, s) => sum + s.durationSec, 0)
   const { addSession } = useSessionHistory(habitId)
   addSession({
-    date: ymd(),
+    date: sessionDate,
     ts: Date.now(),
     plannedSec: ts.value.workSec * ts.value.sessions,
     actualSec,
@@ -97,8 +110,21 @@ function completeHabit() {
     flowExtensions: ts.value.flowExtensions,
     journey: segs,
   }).catch(console.error)
-  store.toggleHabit(habitId, ymd(), { energy: energy.value, note: note.value })
+  store.toggleHabit(habitId, sessionDate, { energy: energy.value, note: note.value })
   store.stopTimer()
+}
+
+async function finishSession() {
+  const confirmed = await confirm({
+    title: t('¿Terminar la sesión?', 'End the session?'),
+    message: t(
+      'Vas a cerrarla antes de tiempo. Vas a poder revisar y guardar tu progreso igual.',
+      "You're ending it early. You'll still be able to review and save your progress.",
+    ),
+    confirmLabel: t('Terminar', 'End'),
+    cancelLabel: t('Seguir', 'Keep going'),
+  })
+  if (confirmed) store.finishTimerNow()
 }
 
 function cancelTimer() {
@@ -130,8 +156,14 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
         <CheckIcon :size="36" />
       </div>
 
-      <div class="screen-eyebrow">{{ t('Sesión cerrada', 'Session closed') }}</div>
+      <div class="screen-eyebrow">
+        {{ isPastDaySession ? t('Sesión sin cerrar', 'Unclosed session') : t('Sesión cerrada', 'Session closed') }}
+      </div>
       <h1 class="review-title">{{ habit?.name }}</h1>
+      <div v-if="isPastDaySession" class="serif review-sub" style="margin-bottom:6px">
+        {{ t(`Quedó abierta desde ${sessionStartDate}. Guardala y ya podés empezar la de hoy.`,
+              `Left open since ${sessionStartDate}. Save it and you can start today's.`) }}
+      </div>
       <div class="serif review-sub">
         {{ sessions }} {{ sessions === 1 ? t('sesión completa', 'complete session') : t('sesiones completas', 'complete sessions') }}
         · {{ (workSec / 60) * sessions }} {{ t('min contigo mismo', 'min with yourself') }}
@@ -209,7 +241,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
         <button class="btn btn-primary flow-continue-btn" @click="store.continueFlow()">
           🌊 {{ t('Continuar 5 min más', 'Continue 5 more min') }}
         </button>
-        <button class="flow-end-btn" @click="store.finishTimerNow()">
+        <button class="flow-end-btn" @click="finishSession">
           {{ t('Terminar sesión', 'End session') }}
         </button>
       </div>
@@ -296,7 +328,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
         <button class="timer-ctrl-btn" @click="store.skipTimerSession()">
           <SkipFwdIcon :size="12" /> {{ t('Saltar', 'Skip') }}
         </button>
-        <button class="timer-ctrl-btn" @click="store.finishTimerNow()">
+        <button class="timer-ctrl-btn" @click="finishSession">
           <CheckIcon :size="12" /> {{ t('Terminar', 'Finish') }}
         </button>
       </div>

@@ -17,7 +17,7 @@ interface DocumentPictureInPictureOptions {
 }
 
 interface DocumentPictureInPicture extends EventTarget {
-  requestPictureInPicture(options?: DocumentPictureInPictureOptions): Promise<Window>
+  requestWindow(options?: DocumentPictureInPictureOptions): Promise<Window>
   readonly window: Window | null
 }
 

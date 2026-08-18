@@ -16,6 +16,7 @@ interface TimerSegment {
 
 interface TimerState {
   habitId: string
+  startedDate?: string  // ymd() the session was started — used to detect a stale, forgotten-open session
   phase: 'work' | 'break' | 'review' | 'flow-check' | 'gate'
   pendingPhase?: 'work' | 'break' | null  // when phase === 'gate': what continueGate() will start
   currentSession: number
@@ -78,6 +79,33 @@ export const useFluiserStore = defineStore('fluiser', () => {
   const activeTimer = computed((): Habit | null => {
     if (!timerState.value) return null
     return data.value.habits.find(h => h.id === timerState.value!.habitId) ?? null
+  })
+
+  // Falls back to the first journey segment's date for sessions persisted
+  // before `startedDate` existed.
+  function _sessionDate(s: TimerState): string {
+    return s.startedDate ?? ymd(new Date(s.journey[0]?.startAt ?? Date.now()))
+  }
+
+  // True once the calendar day has moved on since the active session started —
+  // i.e. the user forgot to close it. Reactive to todayRef, so it flips on its
+  // own if the app is left open across midnight, not just on reload.
+  const isStaleTimer = computed(() =>
+    timerState.value ? _sessionDate(timerState.value) !== todayRef.value : false,
+  )
+
+  // A session left over from a previous day is done, full stop — it shouldn't
+  // resume its countdown or keep nagging with the gate/flow-check alarm.
+  // Snap it straight to 'review' (closing whatever segment was open) so the
+  // only thing left to do with it is save or discard. Stays minimized so this
+  // never interrupts whatever the user is doing when the date rolls over.
+  watch(isStaleTimer, (stale) => {
+    if (!stale) return
+    const s = timerState.value
+    if (!s || s.phase === 'review') return
+    if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null }
+    timerState.value = { ..._closeSegment(s), phase: 'review', remaining: 0, endAt: null, paused: false }
+    _saveTimer()
   })
 
   function _playBell() {
@@ -212,6 +240,16 @@ export const useFluiserStore = defineStore('fluiser', () => {
       let s = JSON.parse(raw) as TimerState
       if (!data.value.habits.find(h => h.id === s.habitId)) {
         localStorage.removeItem(TIMER_STORAGE_KEY); return
+      }
+      if (_sessionDate(s) !== todayRef.value) {
+        // Forgotten open from a previous day — don't resume it live or ring
+        // the gate/flow-check alarm, just close it out so the only thing
+        // left to do is save or discard it before starting today's session.
+        s = { ..._closeSegment(s), phase: 'review', remaining: 0, endAt: null, paused: false }
+        timerState.value = s
+        timerMinimized.value = true
+        _saveTimer()
+        return
       }
       if (!s.paused && s.endAt) s = _fastForward(s)
       timerState.value = s
@@ -536,13 +574,18 @@ export const useFluiserStore = defineStore('fluiser', () => {
   }
 
   function startTimer(habit: Habit) {
+    // A session left open from a previous day must be closed (saved or
+    // discarded) first — see isStaleTimer. The UI is expected to guide the
+    // user there instead of calling startTimer(); this is just the backstop
+    // so it can never silently clobber unsaved progress.
+    if (isStaleTimer.value) return
     if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null }
     const cfg = habit.timer ?? { enabled: true, duration: 25, sessions: 1, breakDuration: 0 }
     const workSec = (cfg.duration || 25) * 60
     const breakSec = (cfg.breakDuration || 0) * 60
     const sessions = cfg.sessions || 1
     timerState.value = {
-      habitId: habit.id, phase: 'work', currentSession: 1,
+      habitId: habit.id, startedDate: todayRef.value, phase: 'work', currentSession: 1,
       remaining: workSec, endAt: Date.now() + workSec * 1000,
       paused: false, workSec, breakSec, sessions, flowExtensions: 0,
       journey: [{ type: 'work', startAt: Date.now() }],
@@ -756,7 +799,7 @@ export const useFluiserStore = defineStore('fluiser', () => {
   }
 
   return {
-    data, activeTimer, timerState, timerMinimized, loading,
+    data, activeTimer, timerState, timerMinimized, loading, isStaleTimer,
     update, isDone, completion,
     toggleHabit, setEnergy, setNote,
     upsertHabit, setHabitActive,
