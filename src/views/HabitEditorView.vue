@@ -472,16 +472,23 @@ async function toggleActive() {
   background: #fff; top: 3px; transition: transform var(--transition);
 }
 
-.heb-stepper-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; transition: opacity var(--transition); }
-.heb-stepper-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-bottom: 6px; }
-.heb-stepper { display: flex; align-items: center; gap: 8px; }
+/* minmax(0, 1fr) instead of a bare 1fr — otherwise each grid track refuses to
+   shrink past its content's min-content width (the "DESCANSO (MIN)" label
+   being the widest), so on narrow screens the grid overflows the card and
+   clips the last stepper's "+" button past the edge. */
+.heb-stepper-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; transition: opacity var(--transition); }
+.heb-stepper-label {
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-bottom: 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.heb-stepper { display: flex; align-items: center; gap: 6px; }
 .heb-stepper-btn {
-  width: 26px; height: 26px; border-radius: 8px;
+  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
   border: 1px solid var(--border-default); background: var(--bg-elevated);
   color: var(--text-1); font-size: 16px; cursor: pointer;
 }
 .heb-stepper-btn:hover { background: var(--bg-glass-hi); }
-.heb-stepper-val { flex: 1; text-align: center; font-size: 18px; font-weight: 700; }
+.heb-stepper-val { flex: 1; min-width: 0; text-align: center; font-size: 18px; font-weight: 700; }
 
 .heb-foot {
   display: flex; align-items: center; justify-content: space-between;
