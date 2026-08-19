@@ -1,6 +1,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
+import { useConfirm } from '@/composables/useConfirm'
 
 // Canvas size mirrors the "1a" design option from the Claude Design mockup
 // (dark HUD card, 420x230) — the floating window intentionally keeps its own
@@ -181,6 +182,27 @@ export function useTimerPip() {
   const active = ref(false)
   const store = useFluiserStore()
   const t = useT()
+  const { confirm } = useConfirm()
+
+  // The confirm modal lives in the main app document (ConfirmDialog.vue,
+  // mounted once in App.vue) — Document PiP shares the same JS realm as the
+  // opener, so the shared useConfirm() state reaches it fine, but the dialog
+  // itself can only render where that component actually is: the main tab,
+  // not the floating window. Bring that tab forward so the alert isn't
+  // silently missed while the user is looking at the PiP window instead.
+  async function finishWithConfirm() {
+    try { window.focus() } catch { /* best effort */ }
+    const confirmed = await confirm({
+      title: t('¿Terminar la sesión?', 'End the session?'),
+      message: t(
+        'Vas a cerrarla antes de tiempo. Vas a poder revisar y guardar tu progreso igual.',
+        "You're ending it early. You'll still be able to review and save your progress.",
+      ),
+      confirmLabel: t('Terminar', 'End'),
+      cancelLabel: t('Seguir', 'Keep going'),
+    })
+    if (confirmed) store.finishTimerNow()
+  }
 
   let canvas: HTMLCanvasElement | null = null
   let ctx2d: CanvasRenderingContext2D | null = null
@@ -451,7 +473,7 @@ export function useTimerPip() {
     } else if (ts.phase === 'flow-check') {
       controlsEl.append(
         wideBtn('🌊', t('+5 min', '+5 min'), () => store.continueFlow(), true),
-        iconBtn(ICON.check, t('Terminar', 'Finish'), () => store.finishTimerNow()),
+        iconBtn(ICON.check, t('Terminar', 'Finish'), () => finishWithConfirm()),
       )
     } else if (ts.phase === 'review') {
       controlsEl.append(wideBtn('→', t('Revisar y guardar en la app', 'Review and save in the app'), () => store.expandTimer(), true))
@@ -464,7 +486,7 @@ export function useTimerPip() {
           true,
         ),
         iconBtn(ICON.skip, t('Saltar', 'Skip'), () => store.skipTimerSession()),
-        iconBtn(ICON.check, t('Terminar', 'Finish'), () => store.finishTimerNow()),
+        iconBtn(ICON.check, t('Terminar', 'Finish'), () => finishWithConfirm()),
       )
     }
   }
@@ -601,7 +623,7 @@ export function useTimerPip() {
         const ts = store.timerState
         if (!ts) return
         if (ts.phase === 'gate') store.continueGate()
-        else if (ts.phase === 'flow-check') store.finishTimerNow()
+        else if (ts.phase === 'flow-check') finishWithConfirm()
         else store.skipTimerSession()
       })
     } catch { /* unsupported */ }
