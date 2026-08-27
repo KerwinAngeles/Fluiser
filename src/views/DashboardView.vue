@@ -1,24 +1,40 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFluiserStore } from '@/stores/fluiser'
+import { useAuthStore } from '@/stores/auth'
 import { useT, useMonths, useDays } from '@/composables/useLang'
 import { useTheme } from '@/composables/useTheme'
 import { getDashboardPhrase } from '@/composables/useStaticAI'
 import { useToday } from '@/composables/useToday'
-import { ICON_MAP, FlameIcon, SunIcon, MoonIcon, CheckIcon, ChevronIcon, CompassIcon, FocusIcon } from '@/components/icons/AppIcons'
+import { useFlowJournal } from '@/composables/useFlowJournal'
+import { ICON_MAP, FlameIcon, SunIcon, MoonIcon, CheckIcon, ChevronIcon, CompassIcon, FocusIcon, GoalsIcon, AlertTriangleIcon } from '@/components/icons/AppIcons'
 import RingProgress from '@/components/ui/RingProgress.vue'
 import HabitRow from '@/components/ui/HabitRow.vue'
+import StatTile from '@/components/ui/StatTile.vue'
+import InsightCard from '@/components/ui/InsightCard.vue'
 import HabitDetailModal from '@/components/modals/HabitDetailModal.vue'
 import CheckinModal from '@/components/modals/CheckinModal.vue'
 import type { Habit, MorningCheckin, EveningCheckin } from '@/types'
 
 const store = useFluiserStore()
+const authStore = useAuthStore()
 const router = useRouter()
 const t = useT()
 const { lang } = useTheme()
 const months = useMonths()
 const days = useDays()
+
+const userName = computed(() => store.data.settings?.name || authStore.user?.user_metadata?.full_name || authStore.user?.email?.split('@')[0] || '')
+
+// KPIs already computed by useFlowJournal (pause analytics + "is this
+// helping" metrics) — Dashboard just wires them into StatTile/InsightCard,
+// no new calculations (redesign Phase 1).
+const { habitStats, weekStats, topPausedHabitId, progressStats, load: loadFlow } = useFlowJournal()
+onMounted(() => loadFlow())
+function habitById(id: string) { return store.data.habits.find((h) => h.id === id) ?? null }
+const topPausedHabit = computed(() => topPausedHabitId.value ? habitById(topPausedHabitId.value) : null)
+const topPausedHabitCount = computed(() => topPausedHabitId.value ? habitStats.value.get(topPausedHabitId.value)?.weekPauseCount ?? 0 : 0)
 
 const { today, hour } = useToday()
 const todayDate = computed(() => new Date(today.value + 'T00:00:00'))
@@ -39,6 +55,8 @@ const topStreaks = computed(() =>
     .sort((a, b) => b.s.current - a.s.current)
     .slice(0, 4)
 )
+
+const bestStreak = computed(() => topStreaks.value[0] ?? null)
 
 const activeMetas = computed(() => store.data.metas.filter((m) => m.status === 'active'))
 
@@ -67,24 +85,67 @@ function handleToggle(habit: Habit) {
 <template>
   <div class="screen">
     <!-- Header -->
-    <div class="flex items-stretch gap-7 mb-9">
-      <div class="flex flex-col justify-center items-center pr-7 border-r border-border-subtle shrink-0">
-        <div class="today-month tnum">{{ months.get(todayDate.getMonth()) }}</div>
-        <div class="today-num tnum leading-none">{{ todayDate.getDate() }}</div>
-        <div class="text-text-3 text-[13px] mt-1.5 capitalize">{{ days.get(todayDate.getDay()) }}</div>
+    <div class="card card-hero dash-hero flex items-stretch gap-7 mb-9 p-7">
+      <div class="flex flex-col justify-center items-center pr-7 border-r border-white/25 shrink-0">
+        <div class="dash-hero-month tnum">{{ months.get(todayDate.getMonth()) }}</div>
+        <div class="dash-hero-day-num tnum leading-none">{{ todayDate.getDate() }}</div>
+        <div class="dash-hero-weekday text-[13px] mt-1.5 capitalize">{{ days.get(todayDate.getDay()) }}</div>
       </div>
       <div class="flex flex-col justify-center flex-1 min-w-0">
-        <div class="screen-eyebrow">{{ t('Fluiser hoy', 'Fluiser today') }}</div>
-        <div class="serif text-[22px] leading-snug text-text-1 italic font-normal mt-1 max-w-lg tracking-tight">
+        <div class="text-[19px] font-semibold tracking-tight dash-hero-greeting">
+          {{ userName ? t(`Hola, ${userName}`, `Hi, ${userName}`) : t('Hola', 'Hi') }} <span aria-hidden="true">👋</span>
+        </div>
+        <div class="serif text-[16px] leading-snug italic font-normal mt-1.5 max-w-lg tracking-tight dash-hero-phrase">
           {{ phrase }}
         </div>
-        <div v-if="morning?.intention" class="flex items-center gap-2 mt-3 text-[13px]">
-          <CompassIcon :size="13" class="text-accent shrink-0" />
-          <span class="text-text-2">{{ t('Intención:', 'Intention:') }}</span>
-          <span class="text-text-1 truncate">{{ morning.intention }}</span>
+        <div v-if="morning?.intention" class="flex items-center gap-2 mt-3 text-[13px] dash-hero-intention">
+          <CompassIcon :size="13" class="shrink-0" />
+          <span class="opacity-80">{{ t('Intención:', 'Intention:') }}</span>
+          <span class="truncate">{{ morning.intention }}</span>
         </div>
       </div>
     </div>
+
+    <!-- Stat tiles — reuses KPIs already computed by useFlowJournal + the streak store -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <StatTile
+        :icon="FlameIcon" tone="amber"
+        :value="bestStreak?.s.current ?? 0"
+        :label="t('Racha más larga', 'Longest streak')"
+        :delta="bestStreak ? t(`récord ${bestStreak.s.best}`, `record ${bestStreak.s.best}`) : undefined"
+      />
+      <StatTile
+        :icon="CheckIcon" tone="sky"
+        :value="`${progress.done}/${progress.total}`"
+        :label="t('Hábitos de hoy', `Today's habits`)"
+      />
+      <StatTile
+        :icon="CheckIcon" tone="mint"
+        :value="`${Math.round(weekStats.cleanPct * 100)}%`"
+        :label="t('Sesiones limpias (7d)', 'Clean sessions (7d)')"
+      />
+      <StatTile
+        :icon="GoalsIcon" tone="lilac"
+        :value="`${progressStats.formedCount}/${progressStats.totalHabits}`"
+        :label="t('Hábitos formados', 'Habits formed')"
+      />
+    </div>
+
+    <!-- Insight: most-interrupted habit this week (same data as Flow Journal) -->
+    <InsightCard
+      v-if="topPausedHabit && topPausedHabitCount > 1"
+      :icon="AlertTriangleIcon" tone="amber"
+      class="mb-6"
+      :title="t('Hábito con más interrupciones', 'Most-interrupted habit')"
+      :message='t(
+        `"${topPausedHabit.name}" se pausó ${topPausedHabitCount} veces esta semana.`,
+        `"${topPausedHabit.name}" was paused ${topPausedHabitCount} times this week.`
+      )'
+    >
+      <template #actions>
+        <button class="btn btn-sm" @click="openHabit = topPausedHabit">{{ t('Ver hábito', 'View habit') }}</button>
+      </template>
+    </InsightCard>
 
     <!-- Progress card + Check-ins -->
     <div class="grid grid-cols-[1.1fr_1fr] gap-4 mb-9">
@@ -261,3 +322,25 @@ function handleToggle(habit: Habit) {
     <CheckinModal :kind="checkinKind" @close="checkinKind = null" />
   </div>
 </template>
+
+<style scoped>
+/* Vivid gradient hero — fixed look regardless of theme (like the warm-wash
+   card references), so every child's color is set explicitly here instead
+   of inheriting the surface text tokens. */
+.dash-hero {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--amber) 72%, black) 0%,
+    color-mix(in srgb, var(--rose) 68%, black) 55%,
+    color-mix(in srgb, var(--lilac) 62%, black) 100%
+  );
+  border-color: transparent;
+}
+.dash-hero-month { font-family: var(--font-display); font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.75); text-transform: uppercase; letter-spacing: 0.1em; }
+.dash-hero-day-num { font-family: var(--font-display); font-size: 56px; font-weight: 600; letter-spacing: -0.04em; color: #fff; }
+.dash-hero-weekday { color: rgba(255,255,255,0.75); }
+.dash-hero-greeting { color: #fff; }
+.dash-hero-phrase { color: rgba(255,255,255,0.88); }
+.dash-hero-intention { color: rgba(255,255,255,0.92); }
+</style>
+

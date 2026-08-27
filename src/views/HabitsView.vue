@@ -2,18 +2,15 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFluiserStore } from '@/stores/fluiser'
-import { useT, useCatLabel } from '@/composables/useLang'
-import { useTheme } from '@/composables/useTheme'
+import { useT } from '@/composables/useLang'
 import { useToday } from '@/composables/useToday'
 import { CATEGORIES } from '@/types'
-import { ICON_MAP, PlusIcon, FlameIcon } from '@/components/icons/AppIcons'
+import { ICON_MAP, PlusIcon } from '@/components/icons/AppIcons'
 import type { Habit, CategoryId } from '@/types'
 
 const store = useFluiserStore()
 const router = useRouter()
 const t = useT()
-const catLabel = useCatLabel()
-const { lang } = useTheme()
 const { today } = useToday()
 
 const filter = ref<CategoryId | 'all'>('all')
@@ -34,25 +31,6 @@ function openNew() {
 
 function openEdit(h: Habit) {
   router.push(`/habits/${h.id}/edit`)
-}
-
-const dowLabels = computed(() =>
-  lang.value === 'en'
-    ? ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-    : ['D', 'L', 'M', 'X', 'J', 'V', 'S']
-)
-
-function dayLetter(dateStr: string): string {
-  return dowLabels.value[new Date(dateStr + 'T00:00:00').getDay()]
-}
-
-function freqLabel(freq: string): string {
-  if (freq === 'daily') return t('diario', 'daily')
-  if (freq === 'mon,tue,wed,thu,fri') return t('L–V', 'M–F')
-  if (freq === 'mon,wed,fri') return t('L·M·V', 'M·W·F')
-  if (freq === 'sat,sun') return t('fin de semana', 'weekends')
-  const n = freq.split(',').length
-  return t(`${n}×/sem`, `${n}×/wk`)
 }
 
 const habitSummaries = computed(() =>
@@ -118,64 +96,39 @@ const habitSummaries = computed(() =>
       >
         <!-- Header row -->
         <div class="hc-header">
-          <div class="hc-icon">
-            <component :is="ICON_MAP[s.habit.icon] ?? ICON_MAP.Habits" :size="17" />
+          <div class="hc-badge">
+            <span class="hc-badge-num tnum">{{ s.streak.current > 0 ? s.streak.current : '—' }}</span>
           </div>
           <div class="hc-info">
-            <div class="hc-name">{{ s.habit.name }}</div>
+            <div class="hc-name-row">
+              <div class="hc-name">{{ s.habit.name }}</div>
+              <div v-if="s.habit.active === false" class="hc-inactive-chip">{{ t('Inactivo', 'Inactive') }}</div>
+            </div>
             <div class="hc-meta">
-              {{ catLabel(s.habit.category).label }}
-              <template v-if="s.habit.time"> · <span class="tnum">{{ s.habit.time }}</span></template>
-              · {{ freqLabel(s.habit.freq) }}
-              <template v-if="s.habit.timer?.enabled"> · {{ s.habit.timer.sessions }}×{{ s.habit.timer.duration }}min</template>
+              {{ t(`${s.streak.current} día${s.streak.current === 1 ? '' : 's'} seguidos`, `${s.streak.current} day${s.streak.current === 1 ? '' : 's'} in a row`) }}
+              · {{ s.rate30 }}% {{ t('en 30 d', 'in 30d') }}
             </div>
           </div>
-          <div v-if="s.habit.active === false" class="hc-inactive-chip">{{ t('Inactivo', 'Inactive') }}</div>
-          <div v-else-if="s.doneToday" class="hc-done-chip">✓ {{ t('Hecho', 'Done') }}</div>
-        </div>
-
-        <!-- Stats strip -->
-        <div class="hc-stats">
-          <div class="hc-stat">
-            <div class="hc-stat-val" style="color: var(--amber)">
-              <FlameIcon :size="11" />{{ s.streak.current > 0 ? s.streak.current : '—' }}
-            </div>
-            <div class="hc-stat-lbl">{{ t('racha', 'streak') }}</div>
-          </div>
-          <div class="hc-stat-sep" />
-          <div class="hc-stat">
-            <div
-              class="hc-stat-val"
-              :style="{ color: s.streak.current >= s.streak.best && s.streak.best > 0 ? 'var(--tone)' : 'var(--text-2)' }"
-            >↑ {{ s.streak.best }}</div>
-            <div class="hc-stat-lbl">{{ t('récord', 'best') }}</div>
-          </div>
-          <div class="hc-stat-sep" />
-          <div class="hc-stat">
-            <div class="hc-stat-val" style="color: var(--tone)">{{ s.rate30 }}%</div>
-            <div class="hc-stat-lbl">{{ t('últimos 30d', 'last 30d') }}</div>
-          </div>
-          <div class="hc-stat-sep" />
-          <div class="hc-stat">
-            <div class="hc-stat-val" style="color: var(--lilac)">{{ s.totalDone }}</div>
-            <div class="hc-stat-lbl">{{ t('total', 'total') }}</div>
+          <div class="hc-cat-icon">
+            <component :is="ICON_MAP[s.habit.icon] ?? ICON_MAP.Habits" :size="14" />
           </div>
         </div>
 
-        <!-- Rate bar -->
-        <div class="hc-rate-track">
-          <div class="hc-rate-fill" :style="{ width: s.rate30 + '%' }" />
-        </div>
-
-        <!-- 14-day track -->
+        <!-- 14-day bar track -->
         <div class="hc-track">
           <div v-for="cell in s.cells14" :key="cell.date" class="hc-track-col">
             <div
-              class="hc-dot"
+              class="hc-bar"
               :data-state="cell.due === 0 ? 'off' : cell.count > 0 ? 'done' : 'miss'"
               :data-today="cell.date === today ? 'yes' : 'no'"
             />
-            <span class="hc-day-lbl">{{ dayLetter(cell.date) }}</span>
+          </div>
+        </div>
+
+        <!-- Footer: record/total -->
+        <div class="hc-footer">
+          <div class="hc-footer-stats">
+            {{ t('récord', 'best') }} {{ s.streak.best }} · {{ t('total', 'total') }} {{ s.totalDone }}
           </div>
         </div>
       </div>
@@ -190,23 +143,34 @@ const habitSummaries = computed(() =>
 </template>
 
 <style scoped>
-/* ── Card ── */
+/* ── Card — reference component, retoned to each habit's own tone instead
+   of a fixed purple, and fed entirely from data habitSummaries already
+   computed (streak, rate30, cells14, totalDone, doneToday). ── */
 .habit-card {
+  position: relative;
   background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  border-left: 3px solid var(--tone);
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 18px;
+  padding: 16px 18px;
   cursor: pointer;
+  overflow: hidden;
   transition: background 160ms ease, border-color 160ms ease;
 }
+.habit-card::before {
+  content: '';
+  position: absolute;
+  top: -40%; right: -20%;
+  width: 60%; height: 140%;
+  background: radial-gradient(circle, var(--tone-soft) 0%, transparent 70%);
+  pointer-events: none;
+}
 .habit-card:hover { background: var(--bg-elevated); }
-.habit-card--inactive { opacity: 0.6; border-left-color: var(--border-default); }
+.habit-card--inactive { opacity: 0.6; }
 
 .hc-inactive-chip {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
-  padding: 3px 9px;
+  padding: 2px 8px;
   border-radius: 999px;
   background: var(--rose-soft);
   color: var(--rose);
@@ -216,22 +180,24 @@ const habitSummaries = computed(() =>
 
 /* ── Header ── */
 .hc-header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
   margin-bottom: 14px;
 }
-.hc-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+.hc-badge {
+  width: 42px; height: 42px;
+  border-radius: 13px;
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  background: var(--tone-soft);
-  color: var(--tone);
+  background: linear-gradient(135deg, var(--tone) 0%, color-mix(in srgb, var(--tone) 55%, black) 100%);
+  box-shadow: 0 4px 14px -4px var(--tone);
 }
+.hc-badge-num { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -0.02em; }
 .hc-info { flex: 1; min-width: 0; }
+.hc-name-row { display: flex; align-items: center; gap: 8px; }
 .hc-name {
   font-size: 15px;
   font-weight: 600;
@@ -243,115 +209,66 @@ const habitSummaries = computed(() =>
   color: var(--text-3);
   margin-top: 3px;
 }
-.hc-done-chip {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--mint-soft);
-  color: var(--mint);
+.hc-cat-icon {
+  width: 26px; height: 26px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
-  white-space: nowrap;
+  background: var(--tone-soft);
+  color: var(--tone);
+  opacity: 0.85;
 }
 
-/* ── Stats strip ── */
-.hc-stats {
-  display: flex;
-  align-items: center;
-  background: var(--bg-elevated);
-  border-radius: 10px;
-  overflow: hidden;
-  margin-bottom: 10px;
-}
-.hc-stat {
-  flex: 1;
-  text-align: center;
-  padding: 9px 6px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-.hc-stat-val {
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-variant-numeric: tabular-nums;
-}
-.hc-stat-lbl {
-  font-size: 10px;
-  color: var(--text-3);
-  white-space: nowrap;
-}
-.hc-stat-sep {
-  width: 1px;
-  height: 28px;
-  background: var(--border-subtle);
-  flex-shrink: 0;
-}
-
-/* ── Rate bar ── */
-.hc-rate-track {
-  height: 3px;
-  background: var(--border-subtle);
-  border-radius: 99px;
-  overflow: hidden;
-  margin-bottom: 12px;
-}
-.hc-rate-fill {
-  height: 100%;
-  background: var(--tone);
-  border-radius: 99px;
-  transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* ── 14-day track ── */
+/* ── 14-day bar track ── */
 .hc-track {
+  position: relative;
   display: flex;
-  justify-content: space-between;
-}
-.hc-track-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  align-items: flex-end;
   gap: 4px;
+  height: 30px;
+  margin-bottom: 14px;
 }
-.hc-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex-shrink: 0;
+.hc-track-col { flex: 1; display: flex; align-items: flex-end; height: 100%; }
+.hc-bar {
+  width: 100%;
+  border-radius: 3px;
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
-.hc-dot[data-state="done"] {
+.hc-bar[data-state="done"] {
+  height: 100%;
   background: var(--tone);
   opacity: 0.82;
 }
-.hc-dot[data-state="done"][data-today="yes"] {
+.hc-bar[data-state="done"][data-today="yes"] {
   opacity: 1;
-  transform: scale(1.25);
-  box-shadow: 0 0 8px var(--tone);
+  box-shadow: 0 0 10px var(--tone);
 }
-.hc-dot[data-state="miss"] {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--border-default);
-  opacity: 0.5;
+.hc-bar[data-state="miss"] {
+  height: 34%;
+  background: var(--border-default);
 }
-.hc-dot[data-state="miss"][data-today="yes"] {
+.hc-bar[data-state="miss"][data-today="yes"] {
+  background: var(--tone-soft);
   box-shadow: inset 0 0 0 1.5px var(--tone);
-  opacity: 0.85;
 }
-.hc-dot[data-state="off"] {
+.hc-bar[data-state="off"] {
+  height: 14%;
   background: var(--border-subtle);
-  opacity: 0.2;
+  opacity: 0.4;
 }
-.hc-day-lbl {
-  font-size: 9px;
-  color: var(--text-4);
-  line-height: 1;
+
+/* ── Footer: record/total ── */
+.hc-footer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.hc-footer-stats {
+  font-size: 11.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 </style>

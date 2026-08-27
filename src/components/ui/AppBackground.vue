@@ -388,8 +388,17 @@ const barbells = Array.from({ length: 5 }, (_, i) => ({
   bottom: -260px; right: -180px;
   opacity: 0.18;
 }
-[data-theme="light"] .bg-ambient::before { opacity: 0.16; }
-[data-theme="light"] .bg-ambient::after  { opacity: 0.10; }
+/* Light mode leans warm (cream + amber/rose glow) instead of the cool
+   accent/mint used in dark mode — matches the redesign's warm-light
+   reference instead of reading as a cold gray-blue wash. */
+[data-theme="light"] .bg-ambient::before {
+  background: radial-gradient(circle, var(--amber) 0%, transparent 60%);
+  opacity: 0.22;
+}
+[data-theme="light"] .bg-ambient::after {
+  background: radial-gradient(circle, var(--rose) 0%, transparent 60%);
+  opacity: 0.16;
+}
 
 /* ── Fireflies ── */
 .firefly {

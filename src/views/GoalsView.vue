@@ -4,8 +4,9 @@ import { useRouter } from 'vue-router'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 import { useToday } from '@/composables/useToday'
-import { ICON_MAP, PlusIcon } from '@/components/icons/AppIcons'
+import { ICON_MAP, PlusIcon, GoalsIcon, CheckIcon, AnalyticsIcon } from '@/components/icons/AppIcons'
 import VisionItemModal from '@/components/modals/VisionItemModal.vue'
+import StatTile from '@/components/ui/StatTile.vue'
 import type { Meta, VisionItem, WeeklyReview, Mood } from '@/types'
 import { MOODS } from '@/types'
 
@@ -36,6 +37,16 @@ function metaProgress(m: Meta): number {
   if (!m.metric || m.metric.target === 0) return 0
   return Math.min(100, Math.round((m.metric.current / m.metric.target) * 100))
 }
+
+// Summary stat row above the goals list (redesign Phase 4) — reuses
+// StatTile, no new data beyond what the list already computes per-card.
+const activeMetasCount = computed(() => store.data.metas.filter((m) => m.status === 'active').length)
+const achievedMetasCount = computed(() => store.data.metas.filter((m) => m.status === 'achieved').length)
+const avgMetaProgress = computed(() => {
+  const withMetric = store.data.metas.filter((m) => m.metric)
+  if (withMetric.length === 0) return null
+  return Math.round(withMetric.reduce((sum, m) => sum + metaProgress(m), 0) / withMetric.length)
+})
 
 function statusTone(s: Meta['status']): string {
   return s === 'active' ? 'sky' : s === 'achieved' ? 'mint' : 'amber'
@@ -163,6 +174,16 @@ const headerSub = computed(() => {
 
     <!-- ── Tab: Metas ── -->
     <template v-if="activeTab === 'metas'">
+      <div v-if="store.data.metas.length > 0" class="grid grid-cols-3 gap-3 mb-5">
+        <StatTile :icon="GoalsIcon" tone="sky" :value="activeMetasCount" :label="t('Activas', 'Active')" />
+        <StatTile :icon="CheckIcon" tone="mint" :value="achievedMetasCount" :label="t('Logradas', 'Achieved')" />
+        <StatTile
+          :icon="AnalyticsIcon" tone="lilac"
+          :value="avgMetaProgress !== null ? `${avgMetaProgress}%` : '—'"
+          :label="t('Progreso promedio', 'Average progress')"
+        />
+      </div>
+
       <TransitionGroup name="list" tag="div" class="flex flex-col gap-3 relative">
         <div
           v-for="m in store.data.metas" :key="m.id"
