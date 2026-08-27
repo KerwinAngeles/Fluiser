@@ -38,7 +38,7 @@ const TONE_ACCENT: Record<string, string> = {
 // switching back to the tab. Classic video PiP (the fallback for browsers
 // without documentPictureInPicture) can't host real controls at all — a
 // <video> only exposes whatever the browser's own overlay chooses to render.
-const DOC_PIP_CONTROLS_HEIGHT = 60
+const DOC_PIP_CONTROLS_HEIGHT = 48
 
 // Document PiP windows are freely resizable by the OS window chrome — the
 // user shrinking the window (which reads as "minimizing" it) must never clip
@@ -56,30 +56,30 @@ const PIP_DOC_STYLES = `
   .fpc-canvas-wrap canvas { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; }
   .fpc-bar {
     flex: 0 0 auto;
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-    height: ${DOC_PIP_CONTROLS_HEIGHT}px; padding: 0 14px; box-sizing: border-box;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    height: ${DOC_PIP_CONTROLS_HEIGHT}px; padding: 0 12px; box-sizing: border-box;
     background: ${PALETTE.bgBottom}; border-top: 1px solid rgba(255,255,255,0.08);
     font-family: ${FONT};
   }
   /* Compact icon buttons (pause/skip/finish) — tooltip carries the label */
   .fpc-btn {
-    flex: 0 0 auto; width: 42px; height: 42px;
+    flex: 0 0 auto; width: 32px; height: 32px;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 11px; border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 9px; border: 1px solid rgba(255,255,255,0.14);
     background: rgba(255,255,255,0.05); color: #fff;
     cursor: pointer; padding: 0;
   }
   .fpc-btn:hover { background: rgba(255,255,255,0.1); }
   .fpc-btn-primary { background: var(--fpc-accent, ${TONE_ACCENT.sky}); border-color: transparent; color: #0A0B0D; }
   .fpc-btn-primary:hover { filter: brightness(0.94); }
-  .fpc-btn svg { width: 16px; height: 16px; }
+  .fpc-btn svg { width: 13px; height: 13px; }
   /* Wide labeled button — only used where a single action needs to stay
      unambiguous (gate/review), so there's no crowding to solve there. */
   .fpc-btn-wide {
-    flex: 1 1 auto; width: auto; height: 38px; padding: 0 16px; gap: 6px;
-    border-radius: 9px; font: 600 12.5px ${FONT}; white-space: nowrap;
+    flex: 1 1 auto; width: auto; height: 30px; padding: 0 14px; gap: 5px;
+    border-radius: 8px; font: 600 11.5px ${FONT}; white-space: nowrap;
   }
-  .fpc-btn-wide svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .fpc-btn-wide svg { width: 12px; height: 12px; flex-shrink: 0; }
 `
 
 function svgIcon(inner: string): string {
