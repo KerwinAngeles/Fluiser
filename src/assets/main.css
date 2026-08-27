@@ -43,6 +43,19 @@
   --hm-4: rgba(123, 182, 255, 0.86);
 
   --r-xs: 6px; --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 28px; --r-full: 999px;
+  /* Hero card radius — dashboard/insight headers (redesign Phase 0+), a step
+     softer than --r-xl so they read as the "special" cards on the screen. */
+  --r-hero: 30px;
+
+  /* Redesign warm accent — expressed in terms of the theme-aware soft tones
+     above, so it needs no separate light/dark override. Used behind hero
+     headers only (Dashboard greeting, Flow Journal), never as a full-page
+     background — AppBackground.vue's ambient system stays untouched. */
+  --warm-wash: linear-gradient(135deg, var(--amber-soft) 0%, var(--rose-soft) 55%, transparent 85%);
+
+  /* Big hero-stat number scale (streak counters, focus score) — distinct
+     from the smaller StatTile grid numbers, which use their own local size. */
+  --type-stat: calc(44px * var(--type-scale));
 
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
   --shadow-md: 0 4px 14px rgba(0,0,0,0.32), 0 1px 2px rgba(0,0,0,0.4);
@@ -67,7 +80,9 @@
   --spring:     380ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-[data-theme="light"] .navbar {
+[data-theme="light"] .shell-sidebar,
+[data-theme="light"] .shell-topbar,
+[data-theme="light"] .shell-tabbar {
   background: rgba(244, 242, 238, 0.92);
 }
 
@@ -185,40 +200,131 @@ input, textarea { font: inherit; color: inherit; background: none; border: 0; ou
 h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.02em; margin: 0; }
 
 /* ============== app shell ============== */
+/* Desktop: sidebar column + main. Mobile (<960px): stacked rows, sidebar
+   swaps for a slim top bar (utilities) + a fixed bottom tab bar (primary
+   nav) — see AppSidebar.vue and the .shell-* rules below. */
 .app {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-columns: var(--shell-sidebar-w, 240px) 1fr;
   height: 100vh;
   background: transparent;
   position: relative;
 }
+@media (max-width: 959px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+}
 
-/* ============== navbar ============== */
-.navbar {
-  height: 68px;
+/* ============== shell: sidebar (desktop) ============== */
+.shell-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
   background: rgba(10, 11, 13, 0.88);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border-bottom: 1px solid var(--border-subtle);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 0 var(--pad-5);
-  gap: 6px;
+  border-right: 1px solid var(--border-subtle);
+  padding: var(--pad-4) var(--pad-3);
+  gap: var(--pad-4);
   position: relative;
   z-index: 10;
   overflow: hidden;
 }
+.shell-sidebar-head { display: flex; align-items: center; }
+.shell-spacer { flex: 1; }
+.shell-sidebar-foot { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border-subtle); }
+.shell-foot-row { display: flex; align-items: center; gap: 4px; }
+.shell-sidebar.collapsed .shell-foot-row { flex-wrap: wrap; justify-content: center; }
+.shell-sidebar.collapsed .user-chip { justify-content: center; }
 
+/* Collapse toggle — its own full-width row so it reads as a deliberate
+   footer action instead of a chevron stranded at the edge of another row. */
+.shell-collapse-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; height: 30px; border-radius: 8px;
+  color: var(--text-3); font-size: 12px; font-weight: 500;
+  background: transparent; border: none; cursor: pointer;
+  transition: background 140ms, color 140ms;
+}
+.shell-collapse-btn:hover { background: var(--border-subtle); color: var(--text-1); }
+
+.shell-nav { display: flex; flex-direction: column; gap: 2px; }
+.shell-nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 9px;
+  color: var(--text-2); font-size: 14px; font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.shell-nav-item:hover { background: var(--border-subtle); color: var(--text-1); }
+.shell-nav-item.active { background: var(--bg-surface); color: var(--text-1); box-shadow: var(--inner-hi); }
+.shell-nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.88; }
+.shell-nav-label { overflow: hidden; text-overflow: ellipsis; }
+.shell-sidebar.collapsed .shell-nav-item { justify-content: center; padding: 9px; }
+.shell-nav-sep { height: 1px; background: var(--border-subtle); margin: 6px 4px; }
+
+/* ============== shell: top bar (mobile, utilities only) ============== */
+.shell-topbar {
+  display: none;
+  height: 60px;
+  background: rgba(10, 11, 13, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border-subtle);
+  align-items: center;
+  padding: 0 var(--pad-4);
+  gap: 6px;
+  position: relative;
+  z-index: 10;
+}
+
+/* ============== shell: bottom tab bar (mobile, primary nav) ============== */
+.shell-tabbar {
+  display: none;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 30;
+  background: rgba(10, 11, 13, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid var(--border-subtle);
+  padding: 6px max(6px, env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-right));
+  gap: 2px;
+  overflow-x: auto;
+}
+.shell-tab {
+  flex: 1 1 0; min-width: 52px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  padding: 6px 2px;
+  border-radius: 10px;
+  color: var(--text-3);
+  font-size: 10px; font-weight: 550;
+  white-space: nowrap;
+  transition: color var(--transition), background var(--transition);
+}
+.shell-tab .icon { width: 19px; height: 19px; }
+.shell-tab.active { color: var(--accent); }
+.shell-tab:active { background: var(--border-subtle); }
+
+@media (max-width: 959px) {
+  .shell-sidebar { display: none; }
+  .shell-topbar { display: flex; }
+  .shell-tabbar { display: flex; }
+  .main { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
+
+/* ============== brand mark (shared: sidebar head + mobile top bar) ============== */
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-right: var(--pad-4);
-  margin-right: var(--pad-2);
   flex-shrink: 0;
-  border-right: 1px solid var(--border-subtle);
+  min-width: 0;
 }
+.brand-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .brand-mark-wrap {
   position: relative;
   display: grid;
@@ -270,46 +376,6 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 }
 .brand-name { font-family: var(--font-display); font-weight: 600; font-size: 16px; letter-spacing: -0.02em; }
 .brand-date { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
-
-.nav-center {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: var(--pad-2);
-}
-
-.nav-sep {
-  width: 1px;
-  height: 20px;
-  background: var(--border-subtle);
-  margin: 0 4px;
-  flex-shrink: 0;
-}
-
-.nav-end {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  padding-left: var(--pad-3);
-  border-left: 1px solid var(--border-subtle);
-}
-
-.nav-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 14px; border-radius: 9px;
-  color: var(--text-2); font-size: 14px; font-weight: 500;
-  cursor: pointer;
-  transition: background var(--transition), color var(--transition);
-  user-select: none;
-  white-space: nowrap;
-}
-.nav-item:hover { background: var(--border-subtle); color: var(--text-1); }
-.nav-item.active { background: var(--bg-surface); color: var(--text-1); box-shadow: var(--inner-hi); }
-.nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.88; }
-
-.nav-section-label { display: none; }
 
 .tc-btn {
   display: inline-flex;
@@ -439,6 +505,11 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 }
 .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); font-weight: 600; margin-bottom: var(--pad-2); }
 .divider { height: 1px; background: var(--border-subtle); margin: var(--pad-2) 0; }
+
+/* hero card — dashboard/insight headers (redesign Phase 0+) */
+.card-hero { border-radius: var(--r-hero); }
+.warm-wash-bg { background: var(--warm-wash); }
+.stat-num { font-family: var(--font-display); font-size: var(--type-stat); font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
 
 /* button */
 .btn {

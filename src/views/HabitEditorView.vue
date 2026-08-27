@@ -7,6 +7,7 @@ import { useToday } from '@/composables/useToday'
 import { useConfirm } from '@/composables/useConfirm'
 import { CATEGORIES } from '@/types'
 import { ICON_MAP, XIcon, CheckIcon, ArrowLeftIcon } from '@/components/icons/AppIcons'
+import RingProgress from '@/components/ui/RingProgress.vue'
 import type { Habit, CategoryId, HabitIcon, Tone, CategoryDef, HabitTimer } from '@/types'
 
 const ICON_OPTS: HabitIcon[] = ['Brain', 'Run', 'Book', 'Water', 'Pen', 'Heart', 'Leaf', 'Bolt', 'Wave', 'Moon', 'Sun', 'Habits']
@@ -160,6 +161,11 @@ function dayStyle(active: boolean) {
 function adjustDuration(delta: number) { timerDuration.value = Math.min(180, Math.max(5, timerDuration.value + delta)) }
 function adjustSessions(delta: number) { timerSessions.value = Math.min(12, Math.max(1, timerSessions.value + delta)) }
 function adjustBreak(delta: number) { timerBreak.value = Math.min(60, Math.max(0, timerBreak.value + delta)) }
+
+// Session builder dial — purely a visual reference of duration against an
+// hour, not a drag-to-set control (the +/- steppers stay the only input,
+// same interaction as before, just around a ring instead of a bare number).
+const durationRingValue = computed(() => Math.min(timerDuration.value / 60, 1))
 
 function goBack() {
   router.push('/habits')
@@ -355,29 +361,32 @@ async function toggleActive() {
             <input type="time" class="input" v-model="time" />
           </div>
 
-          <div class="heb-stepper-grid" :style="{ opacity: timerEnabled ? 1 : 0.35, filter: timerEnabled ? 'none' : 'grayscale(.4)', pointerEvents: timerEnabled ? 'auto' : 'none' }">
-            <div>
-              <div class="heb-stepper-label">{{ t('Duración (min)', 'Duration (min)') }}</div>
-              <div class="heb-stepper">
-                <button class="heb-stepper-btn" @click="adjustDuration(-5)">–</button>
-                <div class="heb-stepper-val">{{ timerDuration }}</div>
-                <button class="heb-stepper-btn" @click="adjustDuration(5)">+</button>
-              </div>
+          <div class="heb-builder" :style="{ opacity: timerEnabled ? 1 : 0.35, filter: timerEnabled ? 'none' : 'grayscale(.4)', pointerEvents: timerEnabled ? 'auto' : 'none' }">
+            <!-- Duration: big dial, matches the session-builder reference — the
+                 ring is decorative (fraction of an hour), the +/- buttons are
+                 still the only input. -->
+            <div class="heb-dial-row">
+              <button class="heb-dial-btn" @click="adjustDuration(-5)">–</button>
+              <RingProgress :size="120" :stroke="8" :value="durationRingValue" :color="`var(--${tone})`" :label="String(timerDuration)" :sub="t('min', 'min')" />
+              <button class="heb-dial-btn" @click="adjustDuration(5)">+</button>
             </div>
-            <div>
-              <div class="heb-stepper-label">{{ t('Series', 'Sets') }}</div>
-              <div class="heb-stepper">
-                <button class="heb-stepper-btn" @click="adjustSessions(-1)">–</button>
-                <div class="heb-stepper-val">{{ timerSessions }}</div>
-                <button class="heb-stepper-btn" @click="adjustSessions(1)">+</button>
+
+            <div class="heb-stepper-grid">
+              <div>
+                <div class="heb-stepper-label">{{ t('Series', 'Sets') }}</div>
+                <div class="heb-stepper">
+                  <button class="heb-stepper-btn" @click="adjustSessions(-1)">–</button>
+                  <div class="heb-stepper-val">{{ timerSessions }}</div>
+                  <button class="heb-stepper-btn" @click="adjustSessions(1)">+</button>
+                </div>
               </div>
-            </div>
-            <div>
-              <div class="heb-stepper-label">{{ t('Descanso (min)', 'Break (min)') }}</div>
-              <div class="heb-stepper">
-                <button class="heb-stepper-btn" @click="adjustBreak(-5)">–</button>
-                <div class="heb-stepper-val">{{ timerBreak }}</div>
-                <button class="heb-stepper-btn" @click="adjustBreak(5)">+</button>
+              <div>
+                <div class="heb-stepper-label">{{ t('Descanso (min)', 'Break (min)') }}</div>
+                <div class="heb-stepper">
+                  <button class="heb-stepper-btn" @click="adjustBreak(-5)">–</button>
+                  <div class="heb-stepper-val">{{ timerBreak }}</div>
+                  <button class="heb-stepper-btn" @click="adjustBreak(5)">+</button>
+                </div>
               </div>
             </div>
           </div>
@@ -472,11 +481,25 @@ async function toggleActive() {
   background: #fff; top: 3px; transition: transform var(--transition);
 }
 
+/* Session builder — big dial for duration (matches the redesign reference),
+   Series/Descanso stay as compact steppers below it. */
+.heb-builder { transition: opacity var(--transition); }
+.heb-dial-row {
+  display: flex; align-items: center; justify-content: center; gap: 20px;
+  margin-bottom: 20px;
+}
+.heb-dial-btn {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  border: 1px solid var(--border-default); background: var(--bg-elevated);
+  color: var(--text-1); font-size: 18px; cursor: pointer;
+}
+.heb-dial-btn:hover { background: var(--bg-glass-hi); }
+
 /* minmax(0, 1fr) instead of a bare 1fr — otherwise each grid track refuses to
    shrink past its content's min-content width (the "DESCANSO (MIN)" label
    being the widest), so on narrow screens the grid overflows the card and
    clips the last stepper's "+" button past the edge. */
-.heb-stepper-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; transition: opacity var(--transition); }
+.heb-stepper-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .heb-stepper-label {
   font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); margin-bottom: 6px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

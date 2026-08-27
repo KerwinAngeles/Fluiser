@@ -176,8 +176,27 @@ export function useFlowJournal() {
     }
   })
 
+  // Daily focus time for the trailing 7 days (today included) — feeds the
+  // weekly bar chart. Same source data as weekStats, just bucketed by day
+  // instead of summed, so the two numbers always agree.
+  const dailyFocus = computed(() => {
+    const now = new Date()
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now)
+      d.setDate(now.getDate() - (6 - i))
+      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      return { date, dow: d.getDay(), sec: 0 }
+    })
+    const indexByDate = new Map(days.map((d, i) => [d.date, i]))
+    for (const s of allSessions.value) {
+      const i = indexByDate.get(s.date)
+      if (i !== undefined) days[i].sec += s.actualSec
+    }
+    return days
+  })
+
   return {
     allSessions, loading, activeFilter, filtered, byDate,
-    habitStats, weekStats, topPausedHabitId, progressStats, load,
+    habitStats, weekStats, topPausedHabitId, progressStats, dailyFocus, load,
   }
 }

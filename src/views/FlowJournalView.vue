@@ -2,14 +2,19 @@
 import { computed, onMounted } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useFlowJournal } from '@/composables/useFlowJournal'
-import { useT } from '@/composables/useLang'
-import { ICON_MAP } from '@/components/icons/AppIcons'
+import { useT, useDays } from '@/composables/useLang'
+import { ICON_MAP, ClockIcon, GoalsIcon, WaveIcon, PauseIcon, AnalyticsIcon, LeafIcon, AlertTriangleIcon } from '@/components/icons/AppIcons'
 import { ENERGY } from '@/types'
 import SessionJourney from '@/components/ui/SessionJourney.vue'
+import StatTile from '@/components/ui/StatTile.vue'
+import InsightCard from '@/components/ui/InsightCard.vue'
+import WeeklyFocusChart from '@/components/ui/WeeklyFocusChart.vue'
 
 const store = useFluiserStore()
 const t = useT()
-const { loading, activeFilter, byDate, habitStats, weekStats, topPausedHabitId, progressStats, load } = useFlowJournal()
+const days = useDays()
+const dowShort = computed(() => Array.from({ length: 7 }, (_, i) => days.get(i).slice(0, 3)))
+const { loading, activeFilter, byDate, habitStats, weekStats, topPausedHabitId, progressStats, dailyFocus, load } = useFlowJournal()
 
 const topPausedHabit = computed(() => topPausedHabitId.value ? habitById(topPausedHabitId.value) : null)
 const topPausedHabitCount = computed(() => topPausedHabitId.value ? habitStats.value.get(topPausedHabitId.value)?.weekPauseCount ?? 0 : 0)
@@ -81,69 +86,64 @@ function weekRingOffset(habitId: string, targetSec: number) {
 
     <!-- ── WEEKLY STATS ── -->
     <div class="fj-stats-row">
-      <div class="fj-stat-card fj-stat-focus">
-        <div class="fj-stat-icon">⏱</div>
-        <div class="fj-stat-val">{{ weekStats.weekSec > 0 ? fmtHM(weekStats.weekSec) : '—' }}</div>
-        <div class="fj-stat-label">{{ t('esta semana', 'this week') }}</div>
-        <div v-if="weekStats.trend !== null" class="fj-stat-trend" :class="weekStats.trend >= 0 ? 'up' : 'down'">
-          {{ weekStats.trend >= 0 ? '↑' : '↓' }} {{ Math.abs(weekStats.trend) }}% vs semana pasada
-        </div>
-      </div>
-
-      <div class="fj-stat-card fj-stat-sessions">
-        <div class="fj-stat-icon">🎯</div>
-        <div class="fj-stat-val">{{ weekStats.weekCount }}</div>
-        <div class="fj-stat-label">{{ t('sesiones', 'sessions') }}</div>
-        <div v-if="weekStats.weekCount > 0" class="fj-stat-trend up">
-          {{ Math.round(weekStats.cleanPct * 100) }}% {{ t('sin pausas', 'no pauses') }}
-        </div>
-      </div>
-
-      <div class="fj-stat-card fj-stat-flow">
-        <div class="fj-stat-icon">🌊</div>
-        <div class="fj-stat-val">{{ weekStats.flowSec > 0 ? fmtHM(weekStats.flowSec) : '—' }}</div>
-        <div class="fj-stat-label">{{ t('en flujo', 'in flow') }}</div>
-      </div>
-
-      <div class="fj-stat-card fj-stat-paused">
-        <div class="fj-stat-icon">⏸</div>
-        <div class="fj-stat-val">{{ weekStats.weekPausedSec > 0 ? fmtHM(weekStats.weekPausedSec) : '—' }}</div>
-        <div class="fj-stat-label">{{ t('pausado', 'paused') }}</div>
-        <!-- Inverted vs the focus-time trend: pausing MORE is the "down" color here. -->
-        <div v-if="weekStats.pauseTrend !== null" class="fj-stat-trend" :class="weekStats.pauseTrend > 0 ? 'down' : 'up'">
-          {{ weekStats.pauseTrend >= 0 ? '↑' : '↓' }} {{ Math.abs(weekStats.pauseTrend) }}% vs semana pasada
-        </div>
-      </div>
+      <StatTile
+        :icon="ClockIcon" tone="sky"
+        :value="weekStats.weekSec > 0 ? fmtHM(weekStats.weekSec) : '—'"
+        :label="t('esta semana', 'this week')"
+        :delta="weekStats.trend !== null ? `${weekStats.trend >= 0 ? '↑' : '↓'} ${Math.abs(weekStats.trend)}% ${t('vs semana pasada', 'vs last week')}` : undefined"
+        :delta-tone="weekStats.trend === null ? 'neutral' : weekStats.trend >= 0 ? 'up' : 'down'"
+      />
+      <StatTile
+        :icon="GoalsIcon" tone="mint"
+        :value="weekStats.weekCount"
+        :label="t('sesiones', 'sessions')"
+        :delta="weekStats.weekCount > 0 ? `${Math.round(weekStats.cleanPct * 100)}% ${t('sin pausas', 'no pauses')}` : undefined"
+        delta-tone="up"
+      />
+      <StatTile
+        :icon="WaveIcon" tone="amber"
+        :value="weekStats.flowSec > 0 ? fmtHM(weekStats.flowSec) : '—'"
+        :label="t('en flujo', 'in flow')"
+      />
+      <StatTile
+        :icon="PauseIcon" tone="lilac"
+        :value="weekStats.weekPausedSec > 0 ? fmtHM(weekStats.weekPausedSec) : '—'"
+        :label="t('pausado', 'paused')"
+        :delta="weekStats.pauseTrend !== null ? `${weekStats.pauseTrend >= 0 ? '↑' : '↓'} ${Math.abs(weekStats.pauseTrend)}% ${t('vs semana pasada', 'vs last week')}` : undefined"
+        :delta-tone="weekStats.pauseTrend === null ? 'neutral' : weekStats.pauseTrend > 0 ? 'down' : 'up'"
+      />
     </div>
+
+    <!-- ── WEEKLY FOCUS CHART ── -->
+    <WeeklyFocusChart class="mb-7" :data="dailyFocus" :trend="weekStats.trend" :dow-labels="dowShort" />
 
     <!-- ── "¿ESTÁ FUNCIONANDO?" PROGRESS ── -->
     <div class="fj-progress-row">
-      <div class="fj-stat-card fj-stat-consistency">
-        <div class="fj-stat-icon">📈</div>
-        <div class="fj-stat-val">{{ Math.round(progressStats.recentPct * 100) }}%</div>
-        <div class="fj-stat-label">{{ t('consistencia (últimas 4 semanas)', 'consistency (last 4 weeks)') }}</div>
-        <div v-if="progressStats.consistencyTrend !== null" class="fj-stat-trend" :class="progressStats.consistencyTrend >= 0 ? 'up' : 'down'">
-          {{ progressStats.consistencyTrend >= 0 ? '↑' : '↓' }} {{ Math.abs(progressStats.consistencyTrend) }}% {{ t('vs 4 semanas anteriores', 'vs previous 4 weeks') }}
-        </div>
-      </div>
-
-      <div class="fj-stat-card fj-stat-formed">
-        <div class="fj-stat-icon">🌱</div>
-        <div class="fj-stat-val">{{ progressStats.formedCount }}/{{ progressStats.totalHabits }}</div>
-        <div class="fj-stat-label">{{ t(`hábitos con ${progressStats.formedStreakDays}+ días de racha`, `habits with a ${progressStats.formedStreakDays}+ day streak`) }}</div>
-      </div>
+      <StatTile
+        :icon="AnalyticsIcon" tone="rose"
+        :value="`${Math.round(progressStats.recentPct * 100)}%`"
+        :label="t('consistencia (últimas 4 semanas)', 'consistency (last 4 weeks)')"
+        :delta="progressStats.consistencyTrend !== null ? `${progressStats.consistencyTrend >= 0 ? '↑' : '↓'} ${Math.abs(progressStats.consistencyTrend)}% ${t('vs 4 semanas anteriores', 'vs previous 4 weeks')}` : undefined"
+        :delta-tone="progressStats.consistencyTrend === null ? 'neutral' : progressStats.consistencyTrend >= 0 ? 'up' : 'down'"
+      />
+      <StatTile
+        :icon="LeafIcon" tone="mint"
+        :value="`${progressStats.formedCount}/${progressStats.totalHabits}`"
+        :label="t(`hábitos con ${progressStats.formedStreakDays}+ días de racha`, `habits with a ${progressStats.formedStreakDays}+ day streak`)"
+      />
     </div>
 
     <!-- ── TOP-PAUSED HABIT CALLOUT ── -->
-    <div v-if="topPausedHabit && topPausedHabitCount > 1" class="fj-callout">
-      <span class="fj-callout-icon">⏸</span>
-      <span>
-        {{ t(
-          `"${topPausedHabit.name}" es tu hábito con más interrupciones esta semana — ${topPausedHabitCount} pausas.`,
-          `"${topPausedHabit.name}" is your most-interrupted habit this week — ${topPausedHabitCount} pauses.`
-        ) }}
-      </span>
-    </div>
+    <InsightCard
+      v-if="topPausedHabit && topPausedHabitCount > 1"
+      :icon="AlertTriangleIcon" tone="lilac"
+      class="mb-7"
+      :title="t('Hábito con más interrupciones', 'Most-interrupted habit')"
+      :message='t(
+        `"${topPausedHabit.name}" es tu hábito con más interrupciones esta semana — ${topPausedHabitCount} pausas.`,
+        `"${topPausedHabit.name}" is your most-interrupted habit this week — ${topPausedHabitCount} pauses.`
+      )'
+    />
 
     <!-- ── HABIT ORBIT STRIP ── -->
     <div v-if="timerHabits.length > 0" class="fj-habits-section">
@@ -300,87 +300,24 @@ function weekRingOffset(habitId: string, targetSec: number) {
   white-space: nowrap;
 }
 
-/* ── Stats row ── */
+/* ── Stats row (StatTile grid) ── */
 .fj-stats-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 28px;
 }
-.fj-stat-card {
-  border-radius: 16px;
-  padding: 18px;
-  border: 1px solid var(--border-subtle);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  position: relative;
-  overflow: hidden;
-}
-.fj-stat-focus {
-  background: linear-gradient(135deg, var(--sky-soft) 0%, var(--bg-surface) 100%);
-}
-.fj-stat-sessions {
-  background: linear-gradient(135deg, var(--mint-soft) 0%, var(--bg-surface) 100%);
-}
-.fj-stat-flow {
-  background: linear-gradient(135deg, var(--amber-soft) 0%, var(--bg-surface) 100%);
-}
-.fj-stat-paused {
-  background: linear-gradient(135deg, var(--lilac-soft) 0%, var(--bg-surface) 100%);
-}
-.fj-stat-icon { font-size: 16px; margin-bottom: 4px; }
-.fj-stat-val {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--text-1);
-  letter-spacing: -0.04em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.fj-stat-label { font-size: 11.5px; color: var(--text-3); }
-.fj-stat-trend {
-  font-size: 10.5px;
-  font-weight: 500;
-  margin-top: 4px;
-}
-.fj-stat-trend.up { color: var(--mint); }
-.fj-stat-trend.down { color: var(--rose); }
-
 @media (max-width: 520px) {
-  .fj-stats-row { grid-template-columns: 1fr 1fr; }
-  .fj-stat-focus { grid-column: 1 / -1; }
+  .fj-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* ── Progress row ("is this working?") ── */
+/* ── Progress row ("is this working?") — StatTile grid ── */
 .fj-progress-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
-.fj-stat-consistency {
-  background: linear-gradient(135deg, var(--rose-soft) 0%, var(--bg-surface) 100%);
-}
-.fj-stat-formed {
-  background: linear-gradient(135deg, var(--mint-soft) 0%, var(--bg-surface) 100%);
-}
-
-/* ── Insight callout ── */
-.fj-callout {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-radius: 12px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  font-size: 12.5px;
-  color: var(--text-2);
-  line-height: 1.5;
-  margin-bottom: 28px;
-}
-.fj-callout-icon { flex-shrink: 0; font-size: 15px; }
 
 /* ── Habit orbit strip ── */
 .fj-habits-section { margin-bottom: 28px; }

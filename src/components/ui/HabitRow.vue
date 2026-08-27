@@ -22,6 +22,17 @@ const done = computed(() => !!completion.value)
 const HabitIcon = computed(() => ICON_MAP[props.habit.icon] ?? ICON_MAP.Habits)
 const catLabel = computed(() => CATEGORIES.find((c) => c.id === props.habit.category)?.label ?? '')
 const energyInfo = computed(() => completion.value ? ENERGY.find((e) => e.id === completion.value!.energy) : null)
+
+// 30-day completion ring around the checkbox — same rate30 formula as the
+// habit card in HabitsView.vue, just rendered compactly here (redesign:
+// "me gustaria que tuviera un círculo de progreso").
+const RING_R = 15
+const RING_LEN = 2 * Math.PI * RING_R
+const rate30 = computed(() => {
+  const cells = store.heatmapData(props.habit.id, 30).filter((c) => c.due > 0)
+  return cells.length ? cells.filter((c) => c.count > 0).length / cells.length : 0
+})
+const ringOffset = computed(() => RING_LEN * (1 - rate30.value))
 </script>
 
 <template>
@@ -30,9 +41,20 @@ const energyInfo = computed(() => completion.value ? ENERGY.find((e) => e.id ===
     :class="dense ? 'px-3.5 py-2.5' : 'px-4 py-3.5'"
     @click="emit('open', habit)"
   >
-    <button :class="['h-check', done ? 'done' : '']" @click.stop="emit('toggle', habit)">
-      <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
-    </button>
+    <div class="hr-ring-wrap" :title="`${Math.round(rate30 * 100)}% · 30d`">
+      <svg width="34" height="34" style="position:absolute;inset:0;transform:rotate(-90deg)">
+        <circle cx="17" cy="17" :r="RING_R" stroke-width="2" fill="none" stroke="var(--border-default)" />
+        <circle
+          cx="17" cy="17" :r="RING_R" stroke-width="2" fill="none"
+          :stroke="`var(--${habit.tone})`" stroke-linecap="round"
+          :stroke-dasharray="RING_LEN" :stroke-dashoffset="ringOffset"
+          style="transition: stroke-dashoffset 600ms cubic-bezier(0.16,1,0.3,1)"
+        />
+      </svg>
+      <button :class="['h-check', done ? 'done' : '']" @click.stop="emit('toggle', habit)">
+        <svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+      </button>
+    </div>
 
     <div
       class="w-8 h-8 rounded-[9px] grid place-items-center flex-shrink-0"
@@ -66,3 +88,14 @@ const energyInfo = computed(() => completion.value ? ENERGY.find((e) => e.id ===
     >{{ energyInfo.label }}</span>
   </div>
 </template>
+
+<style scoped>
+.hr-ring-wrap {
+  position: relative;
+  width: 34px; height: 34px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+.hr-ring-wrap .h-check { position: relative; }
+</style>
