@@ -24,6 +24,7 @@ async function loginDemo() {
 </script>
 
 <template>
+  <div class="auth-page">
   <div class="auth-split">
     <!-- Visual panel — Flui front and center, matches fluiser-rediseno-v2.html's
          split-login reference. Hidden below the form on narrow screens. -->
@@ -114,16 +115,31 @@ async function loginDemo() {
       </div>
     </div>
   </div>
+  </div>
 </template>
 
 <style scoped>
-.auth-split {
+.auth-page {
   position: absolute;
   inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-base);
+  padding: 40px;
+  overflow: auto;
+}
+
+.auth-split {
+  width: min(1040px, 100%);
+  aspect-ratio: 1.74;
+  max-height: 640px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   font-family: var(--font-text);
+  border-radius: 24px;
   overflow: hidden;
+  box-shadow: 0 30px 80px -24px rgba(0, 0, 0, 0.45);
 }
 
 /* ── Visual panel ── */
@@ -262,7 +278,16 @@ async function loginDemo() {
 .auth-assurance-sep { opacity: 0.5; }
 
 @media (max-width: 860px) {
-  .auth-split { grid-template-columns: 1fr; }
+  .auth-page { padding: 0; }
+  .auth-split {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    aspect-ratio: auto;
+    border-radius: 0;
+    box-shadow: none;
+    grid-template-columns: 1fr;
+  }
   .auth-visual { display: none; }
   .auth-logo-compact { display: flex; }
 }

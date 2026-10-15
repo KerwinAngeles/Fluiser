@@ -7,6 +7,7 @@ import { useTheme } from '@/composables/useTheme'
 import { provideLang } from '@/composables/useLang'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import AppBackground from '@/components/ui/AppBackground.vue'
+import Flui from '@/components/ui/Flui.vue'
 import TimerView from '@/views/TimerView.vue'
 import TimerWidget from '@/components/ui/TimerWidget.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -84,9 +85,7 @@ const outerGate = computed(() => {
 
     <!-- Branded loader (auth check or data fetch) -->
     <div v-if="outerGate === 'loading'" key="loading" class="brand-loader">
-      <div class="bl-mark">
-        <span class="bl-symbol">✦</span>
-      </div>
+      <Flui state="feliz" :size="96" />
       <div class="bl-bar">
         <div class="bl-bar-fill" />
       </div>
@@ -142,30 +141,6 @@ const outerGate = computed(() => {
   gap: 32px;
   background: var(--bg-base);
 }
-.bl-mark {
-  width: 64px;
-  height: 64px;
-  border-radius: 18px;
-  background: linear-gradient(140deg, var(--accent) 0%, var(--lilac) 100%);
-  display: grid;
-  place-items: center;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.10) inset, 0 12px 40px var(--accent-glow);
-  animation: bl-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  position: relative;
-  overflow: hidden;
-}
-.bl-mark::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 32% 28%, rgba(255,255,255,0.4), transparent 58%);
-}
-.bl-symbol {
-  font-size: 28px;
-  color: rgba(255,255,255,0.92);
-  position: relative;
-  z-index: 1;
-}
 .bl-bar {
   width: 80px;
   height: 2px;
@@ -178,10 +153,6 @@ const outerGate = computed(() => {
   border-radius: 999px;
   background: linear-gradient(90deg, var(--accent), var(--lilac));
   animation: bl-progress 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-@keyframes bl-pulse {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(255,255,255,0.10) inset, 0 12px 40px var(--accent-glow); }
-  50%       { box-shadow: 0 0 0 1px rgba(255,255,255,0.10) inset, 0 16px 60px var(--accent-glow), 0 0 0 8px var(--accent-soft); }
 }
 @keyframes bl-progress {
   0%   { transform: translateX(-100%); }
