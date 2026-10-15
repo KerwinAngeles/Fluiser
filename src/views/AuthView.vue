@@ -41,9 +41,14 @@ async function loginDemo() {
           <Flui state="idle" :size="220" />
         </div>
       </div>
-      <svg class="auth-wave" viewBox="0 0 400 40" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M0,22 Q100,2 200,16 T400,10 L400,40 L0,40 Z" />
-      </svg>
+      <div class="auth-wave-wrap" aria-hidden="true">
+        <svg class="auth-wave auth-wave-back" viewBox="0 0 200 20" preserveAspectRatio="none">
+          <path d="M0 10 Q12.5 2 25 10 T50 10 T75 10 T100 10 T125 10 T150 10 T175 10 T200 10 V20 H0Z" />
+        </svg>
+        <svg class="auth-wave auth-wave-front" viewBox="0 0 200 20" preserveAspectRatio="none">
+          <path d="M0 10 Q12.5 3 25 10 T50 10 T75 10 T100 10 T125 10 T150 10 T175 10 T200 10 V20 H0Z" />
+        </svg>
+      </div>
       <div class="auth-visual-lower">
         <p class="auth-tagline">Pequeños pasos,<br>todos los días.</p>
       </div>
@@ -157,14 +162,35 @@ async function loginDemo() {
   flex-direction: column;
   padding: 36px 40px 0;
 }
-.auth-wave {
-  display: block;
-  width: 100%;
-  height: 44px;
-  margin-bottom: -1px;
+.auth-wave-wrap {
+  position: relative;
+  height: 40px;
   flex-shrink: 0;
+  overflow: hidden;
 }
-.auth-wave path { fill: color-mix(in srgb, var(--accent) 55%, black); }
+.auth-wave {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 200%;
+  height: 32px;
+}
+.auth-wave-back {
+  bottom: -4px;
+  fill: color-mix(in srgb, var(--accent) 45%, black);
+  opacity: 0.55;
+  animation: auth-wave-drift 9s linear infinite reverse;
+}
+.auth-wave-front {
+  fill: color-mix(in srgb, var(--accent) 55%, black);
+  animation: auth-wave-drift 6s linear infinite;
+}
+@keyframes auth-wave-drift {
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-wave { animation: none; }
+}
 .auth-visual-lower {
   flex: 0 0 auto;
   background: color-mix(in srgb, var(--accent) 55%, black);
@@ -188,8 +214,14 @@ async function loginDemo() {
   position: absolute;
   width: 280px; height: 280px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,255,255,0.35) 0%, transparent 65%);
+  background: radial-gradient(circle, rgba(255,255,255,0.45) 0%, transparent 60%);
   pointer-events: none;
+}
+/* Flui's body gradient (fixed mint/teal, same everywhere) sits too close in
+   hue to this panel's teal backdrop to read on its own — a soft shadow
+   gives it the separation the glow alone doesn't. */
+.auth-visual-flui :deep(.flui) {
+  filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.32));
 }
 
 .auth-tagline {
