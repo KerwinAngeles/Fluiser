@@ -94,26 +94,11 @@ const habitStats = computed(() => {
 
         <!-- Right: stats -->
         <div class="hm-aside">
-          <div class="stat-strip">
-            <div class="stat-chip">
-              <div class="stat-val tnum" style="color:var(--accent)">{{ globalStats.completedDays }}</div>
-              <div class="stat-lbl">{{ t('días cumplidos', 'days kept') }}</div>
-            </div>
-            <div class="stat-divider" />
-            <div class="stat-chip">
-              <div class="stat-val tnum" style="color:var(--mint)">{{ globalStats.rate }}%</div>
-              <div class="stat-lbl">{{ t('tasa global', 'overall rate') }}</div>
-            </div>
-            <div class="stat-divider" />
-            <div class="stat-chip">
-              <div class="stat-val tnum" style="color:var(--lilac)">{{ globalStats.totalDone }}</div>
-              <div class="stat-lbl">{{ t('completados', 'completions') }}</div>
-            </div>
-            <div class="stat-divider" />
-            <div class="stat-chip">
-              <div class="stat-val tnum" style="color:var(--amber)">{{ globalStats.bestStreak }}</div>
-              <div class="stat-lbl">{{ t('racha récord', 'best streak') }}</div>
-            </div>
+          <div class="franja compacta">
+            <div><b class="tnum">{{ globalStats.completedDays }}</b><span>{{ t('días cumplidos', 'days kept') }}</span></div>
+            <div><b class="tnum">{{ globalStats.rate }}%</b><span>{{ t('tasa global', 'overall rate') }}</span></div>
+            <div><b class="tnum">{{ globalStats.totalDone }}</b><span>{{ t('completados', 'completions') }}</span></div>
+            <div><b class="tnum">{{ globalStats.bestStreak }}</b><span>{{ t('racha récord', 'best streak') }}</span></div>
           </div>
 
           <div class="rate-track">
@@ -193,26 +178,11 @@ const habitStats = computed(() => {
               <div class="text-[16px] font-semibold text-text-1">{{ selectedHabit.name }}</div>
             </div>
 
-            <div class="stat-strip mb-4">
-              <div class="stat-chip">
-                <div class="stat-val tnum" :style="{ color: `var(--${selectedHabit.tone})` }">{{ habitStats.streak }}</div>
-                <div class="stat-lbl">{{ t('racha actual', 'streak') }}</div>
-              </div>
-              <div class="stat-divider" />
-              <div class="stat-chip">
-                <div class="stat-val tnum" style="color:var(--amber)">{{ habitStats.best }}</div>
-                <div class="stat-lbl">{{ t('récord', 'best') }}</div>
-              </div>
-              <div class="stat-divider" />
-              <div class="stat-chip">
-                <div class="stat-val tnum" style="color:var(--mint)">{{ habitStats.doneDays }}</div>
-                <div class="stat-lbl">{{ t('días cumplidos', 'days done') }}</div>
-              </div>
-              <div class="stat-divider" />
-              <div class="stat-chip">
-                <div class="stat-val tnum" style="color:var(--accent)">{{ habitStats.rate }}%</div>
-                <div class="stat-lbl">{{ t('completado', 'completion') }}</div>
-              </div>
+            <div class="franja compacta mb-4">
+              <div><b class="tnum">{{ habitStats.streak }}</b><span>{{ t('racha actual', 'streak') }}</span></div>
+              <div><b class="tnum">{{ habitStats.best }}</b><span>{{ t('récord', 'best') }}</span></div>
+              <div><b class="tnum">{{ habitStats.doneDays }}</b><span>{{ t('días cumplidos', 'days done') }}</span></div>
+              <div><b class="tnum">{{ habitStats.rate }}%</b><span>{{ t('completado', 'completion') }}</span></div>
             </div>
 
             <div class="rate-track">
@@ -242,36 +212,6 @@ const habitStats = computed(() => {
   gap: 12px;
 }
 
-.stat-strip {
-  display: flex;
-  align-items: center;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  overflow: hidden;
-}
-.stat-chip {
-  flex: 1;
-  text-align: center;
-  padding: 14px 8px;
-}
-.stat-val {
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1;
-}
-.stat-lbl {
-  font-size: 11px;
-  color: var(--text-3);
-  margin-top: 6px;
-  white-space: nowrap;
-}
-.stat-divider {
-  width: 1px;
-  height: 36px;
-  background: var(--border-subtle);
-  flex-shrink: 0;
-}
 .rate-track {
   height: 4px;
   background: var(--border-subtle);

@@ -5,7 +5,7 @@ import { useFluiserStore } from '@/stores/fluiser'
 import { usePushNotifications } from '@/composables/usePushNotifications'
 import type { BgEffect, AccentColor } from '@/composables/useTheme'
 
-const { dark, lang, heatmap, density, typeSize, bg, accent, reduceMotion } = useTheme()
+const { dark, lang, heatmap, density, typeSize, bg, accent, reduceMotion, fluiPresence, fluiConsejos, fluiCelebra } = useTheme()
 const t = useT()
 const store = useFluiserStore()
 
@@ -86,11 +86,11 @@ const bgOptions: { id: BgEffect; label: [string, string]; preview: string }[] = 
 ]
 
 const accentOptions: { id: AccentColor; label: [string, string]; color: string }[] = [
-  { id: 'sky',   label: ['Cielo',  'Sky'],   color: '#5b9cf6' },
-  { id: 'lilac', label: ['Lila',   'Lilac'], color: '#b8a8e0' },
-  { id: 'mint',  label: ['Menta',  'Mint'],  color: '#6fcf97' },
-  { id: 'rose',  label: ['Rosa',   'Rose'],  color: '#f29090' },
-  { id: 'amber', label: ['Ámbar',  'Amber'], color: '#e8b575' },
+  { id: 'sky',   label: ['Laguna',  'Laguna'],  color: '#5EC1B6' },
+  { id: 'lilac', label: ['Lavanda', 'Lavender'], color: '#A09DF0' },
+  { id: 'mint',  label: ['Musgo',   'Moss'],     color: '#7DC08A' },
+  { id: 'rose',  label: ['Coral',   'Coral'],    color: '#F09A8A' },
+  { id: 'amber', label: ['Sol',     'Sun'],      color: '#F0BA55' },
 ]
 
 function exportData() {
@@ -172,6 +172,31 @@ function exportData() {
               @click="accent = a.id"
             >
               <span v-if="accent === a.id" class="accent-check">✓</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Flui -->
+        <div class="sp-card">
+          <div class="sp-card-title">{{ t('Flui', 'Flui') }}</div>
+          <div class="sp-row">
+            <span class="sp-row-label">{{ t('Presencia', 'Presence') }}</span>
+            <div class="sp-toggle-group">
+              <button :class="['sp-tog', fluiPresence === 'guia' ? 'active' : '']" @click="fluiPresence = 'guia'">{{ t('Guía completa', 'Full guide') }}</button>
+              <button :class="['sp-tog', fluiPresence === 'icono' ? 'active' : '']" @click="fluiPresence = 'icono'">{{ t('Solo icono', 'Icon only') }}</button>
+              <button :class="['sp-tog', fluiPresence === 'oculto' ? 'active' : '']" @click="fluiPresence = 'oculto'">{{ t('Oculto', 'Hidden') }}</button>
+            </div>
+          </div>
+          <div class="sp-row">
+            <span class="sp-row-label">{{ t('Consejos en pantallas nuevas', 'Tips on new screens') }}</span>
+            <button class="sp-switch" :class="{ on: fluiConsejos }" @click="fluiConsejos = !fluiConsejos">
+              <span class="sp-switch-thumb" />
+            </button>
+          </div>
+          <div class="sp-row" style="margin-bottom: 0">
+            <span class="sp-row-label">{{ t('Celebrar rachas', 'Celebrate streaks') }}</span>
+            <button class="sp-switch" :class="{ on: fluiCelebra }" @click="fluiCelebra = !fluiCelebra">
+              <span class="sp-switch-thumb" />
             </button>
           </div>
         </div>
@@ -316,7 +341,7 @@ function exportData() {
 .sp-tog.active {
   background: var(--accent);
   border-color: transparent;
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
@@ -359,7 +384,7 @@ function exportData() {
 .accent-swatch:hover { transform: scale(1.1); }
 .accent-swatch.active { border-color: var(--text-1); transform: scale(1.14); }
 .accent-check {
-  font-size: 15px; color: #fff; font-weight: 700;
+  font-size: 15px; color: var(--on-accent); font-weight: 700;
   text-shadow: 0 1px 3px rgba(0,0,0,0.4);
 }
 

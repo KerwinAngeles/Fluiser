@@ -4,9 +4,9 @@ import { useRouter } from 'vue-router'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 import { useToday } from '@/composables/useToday'
-import { ICON_MAP, PlusIcon, GoalsIcon, CheckIcon, AnalyticsIcon } from '@/components/icons/AppIcons'
+import { ICON_MAP, PlusIcon } from '@/components/icons/AppIcons'
 import VisionItemModal from '@/components/modals/VisionItemModal.vue'
-import StatTile from '@/components/ui/StatTile.vue'
+import Flui from '@/components/ui/Flui.vue'
 import type { Meta, VisionItem, WeeklyReview, Mood } from '@/types'
 import { MOODS } from '@/types'
 
@@ -38,8 +38,8 @@ function metaProgress(m: Meta): number {
   return Math.min(100, Math.round((m.metric.current / m.metric.target) * 100))
 }
 
-// Summary stat row above the goals list (redesign Phase 4) — reuses
-// StatTile, no new data beyond what the list already computes per-card.
+// Summary franja above the goals list — no new data beyond what the list
+// already computes per-card.
 const activeMetasCount = computed(() => store.data.metas.filter((m) => m.status === 'active').length)
 const achievedMetasCount = computed(() => store.data.metas.filter((m) => m.status === 'achieved').length)
 const avgMetaProgress = computed(() => {
@@ -59,6 +59,17 @@ function statusLabel(s: Meta['status']): string {
 function daysLeft(deadline?: string): number | null {
   if (!deadline) return null
   return store.utils.daysBetween(new Date(), new Date(deadline + 'T00:00:00'))
+}
+function isOverdue(m: Meta): boolean {
+  const d = daysLeft(m.deadline)
+  return d !== null && d < 0
+}
+function renewMeta(m: Meta) {
+  const next = store.utils.addDays(new Date(), 30)
+  store.upsertMeta({ ...m, deadline: `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}` })
+}
+function closeMeta(m: Meta) {
+  store.upsertMeta({ ...m, status: 'paused' })
 }
 
 // ── Vision Board ────────────────────────────────────────────────────────
@@ -174,14 +185,11 @@ const headerSub = computed(() => {
 
     <!-- ── Tab: Metas ── -->
     <template v-if="activeTab === 'metas'">
-      <div v-if="store.data.metas.length > 0" class="grid grid-cols-3 gap-3 mb-5">
-        <StatTile :icon="GoalsIcon" tone="sky" :value="activeMetasCount" :label="t('Activas', 'Active')" />
-        <StatTile :icon="CheckIcon" tone="mint" :value="achievedMetasCount" :label="t('Logradas', 'Achieved')" />
-        <StatTile
-          :icon="AnalyticsIcon" tone="lilac"
-          :value="avgMetaProgress !== null ? `${avgMetaProgress}%` : '—'"
-          :label="t('Progreso promedio', 'Average progress')"
-        />
+      <div v-if="store.data.metas.length > 0" class="franja" style="grid-template-columns: repeat(3, 1fr)">
+        <div><b class="tnum">{{ activeMetasCount }}</b><span>{{ t('Activas', 'Active') }}</span></div>
+        <div><b class="tnum">{{ achievedMetasCount }}</b><span>{{ t('Logradas', 'Achieved') }}</span></div>
+        <div v-if="avgMetaProgress === null" class="vacio"><b>{{ t('Aún sin progreso', 'No progress yet') }}</b><span>{{ t('Progreso promedio', 'Average progress') }}</span></div>
+        <div v-else><b class="tnum">{{ avgMetaProgress }}%</b><span>{{ t('Progreso promedio', 'Average progress') }}</span></div>
       </div>
 
       <TransitionGroup name="list" tag="div" class="flex flex-col gap-3 relative">
@@ -233,6 +241,15 @@ const headerSub = computed(() => {
                 {{ store.data.habits.find(h => h.id === hId)!.name }}
               </span>
             </template>
+          </div>
+
+          <div v-if="isOverdue(m)" class="flui-nota" @click.stop>
+            <Flui state="pista" :size="44" />
+            <span>{{ t('Esta meta venció. ¿La renuevas o la cierras?', 'This goal is overdue. Renew it or close it?') }}</span>
+            <div class="acc">
+              <button class="btn btn-primary btn-sm" @click="renewMeta(m)">{{ t('Renovar', 'Renew') }}</button>
+              <button class="btn btn-ghost btn-sm" @click="closeMeta(m)">{{ t('Cerrar meta', 'Close goal') }}</button>
+            </div>
           </div>
         </div>
 

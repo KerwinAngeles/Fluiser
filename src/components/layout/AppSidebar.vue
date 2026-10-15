@@ -276,7 +276,7 @@ function isActive(id: string) {
   background: var(--rose-soft); color: var(--rose);
   border-color: rgba(232, 155, 149, 0.25); gap: 6px;
 }
-.lc-danger:hover:not(:disabled) { background: var(--rose); color: #fff; border-color: transparent; }
+.lc-danger:hover:not(:disabled) { background: var(--rose); color: var(--on-accent); border-color: transparent; }
 .lc-danger:disabled { opacity: 0.55; cursor: not-allowed; }
 .lc-spinner {
   display: inline-block; width: 13px; height: 13px;

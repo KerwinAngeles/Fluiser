@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useAuthStore } from '@/stores/auth'
@@ -8,11 +8,11 @@ import { useTheme } from '@/composables/useTheme'
 import { getDashboardPhrase } from '@/composables/useStaticAI'
 import { useToday } from '@/composables/useToday'
 import { useFlowJournal } from '@/composables/useFlowJournal'
-import { ICON_MAP, FlameIcon, SunIcon, MoonIcon, CheckIcon, ChevronIcon, CompassIcon, FocusIcon, GoalsIcon, AlertTriangleIcon } from '@/components/icons/AppIcons'
-import RingProgress from '@/components/ui/RingProgress.vue'
+import { useFlui } from '@/composables/useFlui'
+import { ICON_MAP, FlameIcon, SunIcon, MoonIcon, CheckIcon, ChevronIcon, CompassIcon, FocusIcon } from '@/components/icons/AppIcons'
+import Agua from '@/components/ui/Agua.vue'
+import Flui from '@/components/ui/Flui.vue'
 import HabitRow from '@/components/ui/HabitRow.vue'
-import StatTile from '@/components/ui/StatTile.vue'
-import InsightCard from '@/components/ui/InsightCard.vue'
 import HabitDetailModal from '@/components/modals/HabitDetailModal.vue'
 import CheckinModal from '@/components/modals/CheckinModal.vue'
 import type { Habit, MorningCheckin, EveningCheckin } from '@/types'
@@ -24,17 +24,14 @@ const t = useT()
 const { lang } = useTheme()
 const months = useMonths()
 const days = useDays()
+const flui = useFlui()
 
 const userName = computed(() => store.data.settings?.name || authStore.user?.user_metadata?.full_name || authStore.user?.email?.split('@')[0] || '')
 
-// KPIs already computed by useFlowJournal (pause analytics + "is this
-// helping" metrics) — Dashboard just wires them into StatTile/InsightCard,
-// no new calculations (redesign Phase 1).
-const { habitStats, weekStats, topPausedHabitId, progressStats, load: loadFlow } = useFlowJournal()
+// KPIs already computed by useFlowJournal — Dashboard just reads them into
+// the franja (sesiones limpias, hábitos formados), no new calculations.
+const { weekStats, progressStats, load: loadFlow } = useFlowJournal()
 onMounted(() => loadFlow())
-function habitById(id: string) { return store.data.habits.find((h) => h.id === id) ?? null }
-const topPausedHabit = computed(() => topPausedHabitId.value ? habitById(topPausedHabitId.value) : null)
-const topPausedHabitCount = computed(() => topPausedHabitId.value ? habitStats.value.get(topPausedHabitId.value)?.weekPauseCount ?? 0 : 0)
 
 const { today, hour } = useToday()
 const todayDate = computed(() => new Date(today.value + 'T00:00:00'))
@@ -60,21 +57,33 @@ const bestStreak = computed(() => topStreaks.value[0] ?? null)
 
 const activeMetas = computed(() => store.data.metas.filter((m) => m.status === 'active'))
 
-function metaProgress(m: typeof store.data.metas[0]): number {
-  if (!m.metric || m.metric.target === 0) return 0
-  return Math.min(100, Math.round((m.metric.current / m.metric.target) * 100))
+function daysLeft(deadline?: string): number | null {
+  if (!deadline) return null
+  return store.utils.daysBetween(new Date(), new Date(deadline + 'T00:00:00'))
 }
 
 const progressLabel = computed(() => {
   const p = progress.value
-  if (p.pct === 1) return t('Día redondo ✓', 'Day complete ✓')
-  if (p.pct > 0.5) return t('Vas bien', 'Going well')
-  if (p.pct > 0) return t('Empezando', 'Just starting')
-  return t('Lienzo en blanco', 'Blank canvas')
+  if (p.done === 0) return t('Lienzo en blanco', 'Blank canvas')
+  if (p.done < p.total) return t('Va tomando forma', 'Taking shape')
+  return t('Día completo', 'Day complete')
+})
+const progressSub = computed(() => {
+  const p = progress.value
+  if (p.done === 0) return t(`${p.total} por hacer. Sin prisa.`, `${p.total} to do. No rush.`)
+  if (p.done < p.total) return t(`Te falta ${p.total - p.done}.`, `${p.total - p.done} left.`)
+  return t('Todo hecho. Buen trabajo.', 'All done. Great work.')
 })
 
 const openHabit = ref<Habit | null>(null)
 const checkinKind = ref<'morning' | 'evening' | null>(null)
+
+// Flui reacts whenever a habit becomes done today, regardless of whether it
+// went through the direct undo path or the energy-picker modal — celebra on
+// a fully complete day, feliz otherwise.
+watch(() => progress.value.done, (now, prev) => {
+  if (now > prev) flui.reaccionar(progress.value.pct === 1 ? 'celebra' : 'feliz', progress.value.pct === 1 ? 2400 : 1300)
+})
 
 function handleToggle(habit: Habit) {
   if (store.isDone(habit.id)) { store.toggleHabit(habit.id); return }
@@ -84,236 +93,173 @@ function handleToggle(habit: Habit) {
 
 <template>
   <div class="screen">
-    <!-- Header -->
-    <div class="card card-hero dash-hero flex items-stretch gap-7 mb-9 p-7">
-      <div class="flex flex-col justify-center items-center pr-7 border-r border-white/25 shrink-0">
-        <div class="dash-hero-month tnum">{{ months.get(todayDate.getMonth()) }}</div>
-        <div class="dash-hero-day-num tnum leading-none">{{ todayDate.getDate() }}</div>
-        <div class="dash-hero-weekday text-[13px] mt-1.5 capitalize">{{ days.get(todayDate.getDay()) }}</div>
+    <!-- Saludo — sober date block + greeting, no gradient card -->
+    <div class="flex gap-5 items-center mb-7">
+      <div class="flex flex-col items-center justify-center w-[84px] h-[92px] rounded-[22px] bg-bg-surface border border-border-default shrink-0">
+        <small class="text-text-3 text-[12px] font-semibold">{{ months.get(todayDate.getMonth()) }}</small>
+        <b class="text-[38px] leading-none tnum" style="font-family: var(--font-display)">{{ todayDate.getDate() }}</b>
+        <small class="text-text-3 text-[12px] font-semibold capitalize">{{ days.get(todayDate.getDay()) }}</small>
       </div>
-      <div class="flex flex-col justify-center flex-1 min-w-0">
-        <div class="text-[19px] font-semibold tracking-tight dash-hero-greeting">
-          {{ userName ? t(`Hola, ${userName}`, `Hi, ${userName}`) : t('Hola', 'Hi') }} <span aria-hidden="true">👋</span>
-        </div>
-        <div class="serif text-[16px] leading-snug italic font-normal mt-1.5 max-w-lg tracking-tight dash-hero-phrase">
-          {{ phrase }}
-        </div>
-        <div v-if="morning?.intention" class="flex items-center gap-2 mt-3 text-[13px] dash-hero-intention">
-          <CompassIcon :size="13" class="shrink-0" />
-          <span class="opacity-80">{{ t('Intención:', 'Intention:') }}</span>
-          <span class="truncate">{{ morning.intention }}</span>
+      <div class="min-w-0">
+        <h3 class="text-[32px] font-semibold tracking-tight text-text-1">
+          {{ userName ? t(`Hola, ${userName}`, `Hi, ${userName}`) : t('Hola', 'Hi') }}
+        </h3>
+        <p class="text-text-2 text-[16px] mt-1">{{ phrase }}</p>
+        <div v-if="morning?.intention" class="flex items-center gap-2 mt-2 text-[13px]">
+          <CompassIcon :size="13" class="text-accent shrink-0" />
+          <span class="text-text-2">{{ t('Intención:', 'Intention:') }}</span>
+          <span class="text-text-1 truncate">{{ morning.intention }}</span>
         </div>
       </div>
     </div>
 
-    <!-- Stat tiles — reuses KPIs already computed by useFlowJournal + the streak store -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-      <StatTile
-        :icon="FlameIcon" tone="amber"
-        :value="bestStreak?.s.current ?? 0"
-        :label="t('Racha más larga', 'Longest streak')"
-        :delta="bestStreak ? t(`récord ${bestStreak.s.best}`, `record ${bestStreak.s.best}`) : undefined"
-      />
-      <StatTile
-        :icon="CheckIcon" tone="sky"
-        :value="`${progress.done}/${progress.total}`"
-        :label="t('Hábitos de hoy', `Today's habits`)"
-      />
-      <StatTile
-        :icon="CheckIcon" tone="mint"
-        :value="`${Math.round(weekStats.cleanPct * 100)}%`"
-        :label="t('Sesiones limpias (7d)', 'Clean sessions (7d)')"
-      />
-      <StatTile
-        :icon="GoalsIcon" tone="lilac"
-        :value="`${progressStats.formedCount}/${progressStats.totalHabits}`"
-        :label="t('Hábitos formados', 'Habits formed')"
-      />
+    <!-- Franja — reuses KPIs already computed by useFlowJournal + the streak store -->
+    <div class="franja">
+      <div><b class="tnum">{{ bestStreak ? t(`${bestStreak.s.current} días`, `${bestStreak.s.current} days`) : t('Sin racha', 'No streak') }}</b><span>{{ t('Racha más larga', 'Longest streak') }}</span></div>
+      <div><b class="tnum">{{ t(`${progress.done} de ${progress.total}`, `${progress.done} of ${progress.total}`) }}</b><span>{{ t('Hábitos de hoy', `Today's habits`) }}</span></div>
+      <div v-if="weekStats.weekCount === 0" class="vacio"><b>{{ t('Sin sesiones', 'No sessions') }}</b><span>{{ t('Sesiones limpias, 7 días', 'Clean sessions, 7 days') }}</span></div>
+      <div v-else><b class="tnum">{{ Math.round(weekStats.cleanPct * 100) }}%</b><span>{{ t('Sesiones limpias, 7 días', 'Clean sessions, 7 days') }}</span></div>
+      <div><b class="tnum">{{ t(`${progressStats.formedCount} de ${progressStats.totalHabits}`, `${progressStats.formedCount} of ${progressStats.totalHabits}`) }}</b><span>{{ t('Hábitos formados', 'Habits formed') }}</span></div>
     </div>
 
-    <!-- Insight: most-interrupted habit this week (same data as Flow Journal) -->
-    <InsightCard
-      v-if="topPausedHabit && topPausedHabitCount > 1"
-      :icon="AlertTriangleIcon" tone="amber"
-      class="mb-6"
-      :title="t('Hábito con más interrupciones', 'Most-interrupted habit')"
-      :message='t(
-        `"${topPausedHabit.name}" se pausó ${topPausedHabitCount} veces esta semana.`,
-        `"${topPausedHabit.name}" was paused ${topPausedHabitCount} times this week.`
-      )'
-    >
-      <template #actions>
-        <button class="btn btn-sm" @click="openHabit = topPausedHabit">{{ t('Ver hábito', 'View habit') }}</button>
-      </template>
-    </InsightCard>
-
-    <!-- Progress card + Check-ins -->
-    <div class="grid grid-cols-[1.1fr_1fr] gap-4 mb-9">
-      <!-- Progress ring card -->
-      <div class="card flex items-center gap-6 p-7">
-        <RingProgress :size="120" :stroke="9" :value="progress.pct" :label="`${progress.done}`" :sub="t(`de ${progress.total}`, `of ${progress.total}`)" />
-        <div class="flex-1 min-w-0">
-          <div class="card-title mb-1.5">{{ t('Hábitos del día', "Today's habits") }}</div>
-          <div class="text-[21px] font-semibold tracking-tight text-text-1">{{ progressLabel }}</div>
-          <div class="text-text-2 text-[13px] mt-1.5">
-            {{ progress.pct === 1
-              ? t('Todo hecho. Disfruta el resto.', 'All done. Enjoy the rest.')
-              : t(`${progress.total - progress.done} por hacer. Sin prisa.`, `${progress.total - progress.done} left. No rush.`) }}
+    <!-- Hoy grid: Para hoy + Rachas/Metas | Tu día -->
+    <div class="grid grid-cols-[1.55fr_1fr] gap-5 items-start">
+      <div>
+        <div class="card p-0 overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-border-default">
+            <h4 class="text-[17px] font-semibold">{{ t('Para hoy', 'For today') }}</h4>
+            <span class="text-text-2 text-[13px] font-semibold">{{ t(`${progress.done} de ${progress.total} completados`, `${progress.done} of ${progress.total} done`) }}</span>
           </div>
-          <div class="flex gap-2 mt-4">
-            <button class="btn btn-primary btn-sm" @click="store.setFocus(true)">
-              <FocusIcon :size="12" /> {{ t('Enfoque', 'Focus') }}
-            </button>
+          <TransitionGroup name="list" tag="div" class="relative">
+            <HabitRow
+              v-for="h in due" :key="h.id"
+              :habit="h" :date="today"
+              @toggle="handleToggle"
+              @open="openHabit = $event"
+            />
+            <div v-if="due.length === 0" key="__empty" class="muted py-10 text-center italic text-sm">
+              {{ t('Hoy no hay hábitos. Un día también puede ser sólo respirar.', 'No habits today. Some days are just for breathing.') }}
+            </div>
+          </TransitionGroup>
+        </div>
+
+        <!-- Habits not scheduled today -->
+        <div v-if="notDueToday.length > 0" class="mt-4">
+          <div class="text-[11px] font-semibold uppercase tracking-wider text-text-4 mb-2.5">
+            {{ t('No programados hoy', 'Not scheduled today') }}
+          </div>
+          <div class="flex flex-col gap-1">
+            <div
+              v-for="h in notDueToday" :key="h.id"
+              class="flex items-center gap-3 px-3 py-2 rounded-xl opacity-40"
+            >
+              <div
+                class="w-6 h-6 rounded-[7px] grid place-items-center shrink-0"
+                :style="{ background: `var(--${h.tone}-soft)`, color: `var(--${h.tone})` }"
+              >
+                <component :is="ICON_MAP[h.icon] ?? ICON_MAP.Habits" :size="12" />
+              </div>
+              <span class="text-[13px] text-text-2 flex-1">{{ h.name }}</span>
+              <span class="text-[11px] text-text-4">
+                {{ h.freq === 'daily' ? '' : h.freq === 'mon,tue,wed,thu,fri' ? t('L–V', 'M–F') : h.freq === 'mon,wed,fri' ? 'L·X·V' : h.freq === 'sat,sun' ? t('Fin sem.', 'Wknd') : h.freq }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mt-4">
+          <div class="card">
+            <h4 class="text-[15px] font-semibold mb-2">{{ t('Rachas vivas', 'Active streaks') }}</h4>
+            <div v-if="topStreaks.length === 0" class="vacio-flui">
+              <Flui state="pista" :size="44" />
+              {{ t('Completa un hábito hoy y mañana para encender tu primera racha.', 'Complete a habit today and tomorrow to light your first streak.') }}
+            </div>
+            <div v-else class="flex flex-col gap-2.5">
+              <div v-for="{ h, s } in topStreaks" :key="h.id" class="flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-[26px] h-[26px] rounded-[7px] grid place-items-center shrink-0"
+                    :style="{ background: `var(--${h.tone}-soft)`, color: `var(--${h.tone})` }">
+                    <component :is="ICON_MAP[h.icon] ?? ICON_MAP.Habits" :size="12" />
+                  </div>
+                  <span class="text-[13px] font-medium text-text-1 truncate max-w-[120px]">{{ h.name }}</span>
+                </div>
+                <div class="flex items-center gap-1 shrink-0">
+                  <FlameIcon :size="12" class="text-amber" />
+                  <span class="tnum text-[13px] font-semibold text-amber">{{ s.current }}</span>
+                  <span class="tnum text-text-3 text-[11px]">/ {{ s.best }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-[15px] font-semibold">{{ t('Metas activas', 'Active goals') }}</h4>
+              <button class="btn btn-ghost btn-sm" @click="router.push('/goals')">{{ t('Ver', 'View') }}</button>
+            </div>
+            <div v-if="activeMetas.length === 0" class="text-text-3 text-[13px] mt-1">
+              {{ t('Sin metas todavía.', 'No goals yet.') }}
+            </div>
+            <div v-else v-for="m in activeMetas.slice(0, 1)" :key="m.id" class="flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <b class="text-[15px] font-medium block truncate">{{ m.title }}</b>
+              </div>
+              <span class="estado-tag" :class="daysLeft(m.deadline) !== null && daysLeft(m.deadline)! < 0 ? 'tag-coral' : 'tag-laguna'">
+                {{ daysLeft(m.deadline) !== null && daysLeft(m.deadline)! < 0 ? t('Vencida', 'Overdue') : t('Activa', 'Active') }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Check-ins card -->
+      <!-- Tu día -->
       <div class="card p-5">
-        <div class="card-title mb-3.5">{{ t('Tu día', 'Your day') }}</div>
-        <div class="flex flex-col gap-2.5">
+        <h4 class="text-[17px] font-semibold mb-3">{{ t('Tu día', 'Your day') }}</h4>
+        <div class="flex items-center gap-4">
+          <Agua :progress="progress.pct * 100" :size="96">
+            <b class="text-[26px] font-display leading-none" style="font-family: var(--font-display)">{{ progress.done }}</b>
+            <small class="block text-[11px] text-text-3">{{ t(`de ${progress.total}`, `of ${progress.total}`) }}</small>
+          </Agua>
+          <div class="min-w-0">
+            <b class="text-[20px] font-semibold block" style="font-family: var(--font-display)">{{ progressLabel }}</b>
+            <p class="text-text-2 text-[14px] mt-1">{{ progressSub }}</p>
+          </div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button class="btn btn-primary btn-sm" @click="store.setFocus(true)">
+            <FocusIcon :size="12" /> {{ t('Enfoque', 'Focus') }}
+          </button>
+        </div>
+        <div class="flex flex-col gap-2 mt-4">
           <button
-            class="text-left flex items-center gap-3 p-3 rounded-xl border transition-colors"
-            :class="morning ? 'bg-accent-soft border-accent-glow' : 'bg-border-subtle border-border-default hover:bg-bg-elevated'"
+            class="rutina text-left w-full"
             @click="checkinKind = 'morning'"
           >
-            <div
-              class="w-7 h-7 rounded-lg grid place-items-center shrink-0"
-              :class="morning ? 'bg-accent text-bg-base' : 'bg-bg-elevated text-text-2'"
-            >
-              <SunIcon :size="14" />
-            </div>
+            <SunIcon :size="16" class="text-accent" />
             <div class="flex-1 min-w-0">
-              <div class="text-[13px] font-medium text-text-1">{{ t('Mañana', 'Morning') }}</div>
-              <div class="text-xs text-text-3 mt-0.5 truncate">
+              <b class="text-[14px] block">{{ t('Rutina de mañana', 'Morning routine') }}</b>
+              <small class="text-text-3 text-[12px]">
                 {{ morning ? (morning.intention || t('Completado ✓', 'Done ✓')) : t('30 segundos', '30 seconds') }}
-              </div>
+              </small>
             </div>
             <CheckIcon v-if="morning" :size="14" class="text-accent shrink-0" />
             <ChevronIcon v-else :size="14" class="text-text-3 shrink-0" />
           </button>
-
           <button
-            class="text-left flex items-center gap-3 p-3 rounded-xl border transition-colors"
-            :class="[
-              evening ? 'bg-accent-soft border-accent-glow' : 'bg-border-subtle border-border-default hover:bg-bg-elevated',
-              !evening && hour < 18 ? 'opacity-40 pointer-events-none' : '',
-            ]"
+            class="rutina text-left w-full"
+            :class="{ 'opacity-40 pointer-events-none': !evening && hour < 18 }"
             @click="checkinKind = 'evening'"
           >
-            <div
-              class="w-7 h-7 rounded-lg grid place-items-center shrink-0"
-              :class="evening ? 'bg-accent text-bg-base' : 'bg-bg-elevated text-text-2'"
-            >
-              <MoonIcon :size="14" />
-            </div>
+            <MoonIcon :size="16" class="text-accent" />
             <div class="flex-1 min-w-0">
-              <div class="text-[13px] font-medium text-text-1">{{ t('Noche', 'Evening') }}</div>
-              <div class="text-xs text-text-3 mt-0.5 truncate">
-                {{ evening ? ((evening as EveningCheckin).reflection || t('Completado ✓', 'Done ✓')) : t('Disponible a las 6pm', 'Available at 6pm') }}
-              </div>
+              <b class="text-[14px] block">{{ t('Rutina de noche', 'Evening routine') }}</b>
+              <small class="text-text-3 text-[12px]">
+                {{ evening ? ((evening as EveningCheckin).reflection || t('Completado ✓', 'Done ✓')) : t('Disponible a las 6 p. m.', 'Available at 6pm') }}
+              </small>
             </div>
             <CheckIcon v-if="evening" :size="14" class="text-accent shrink-0" />
             <ChevronIcon v-else :size="14" class="text-text-3 shrink-0" />
           </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Habits list -->
-    <div class="mb-9">
-      <div class="flex items-end justify-between mb-4">
-        <div>
-          <div class="screen-eyebrow">{{ t('Para hoy', 'For today') }}</div>
-          <h2 class="text-lg font-semibold text-text-1">
-            {{ t(`${progress.done}/${progress.total} completados`, `${progress.done}/${progress.total} done`) }}
-          </h2>
-        </div>
-        <button class="btn btn-ghost btn-sm" @click="router.push('/habits')">{{ t('Gestionar', 'Manage') }}</button>
-      </div>
-      <TransitionGroup name="list" tag="div" class="flex flex-col gap-1.5 relative">
-        <HabitRow
-          v-for="h in due" :key="h.id"
-          :habit="h" :date="today"
-          @toggle="handleToggle"
-          @open="openHabit = $event"
-        />
-        <div v-if="due.length === 0" key="__empty" class="muted py-10 text-center italic text-sm">
-          {{ t('Hoy no hay hábitos. Un día también puede ser sólo respirar.', 'No habits today. Some days are just for breathing.') }}
-        </div>
-      </TransitionGroup>
-
-      <!-- Habits not scheduled today -->
-      <div v-if="notDueToday.length > 0" class="mt-4 pt-4 border-t border-border-subtle">
-        <div class="text-[11px] font-semibold uppercase tracking-wider text-text-4 mb-2.5">
-          {{ t('No programados hoy', 'Not scheduled today') }}
-        </div>
-        <div class="flex flex-col gap-1">
-          <div
-            v-for="h in notDueToday" :key="h.id"
-            class="flex items-center gap-3 px-3 py-2 rounded-xl opacity-40"
-          >
-            <div
-              class="w-6 h-6 rounded-[7px] grid place-items-center shrink-0"
-              :style="{ background: `var(--${h.tone}-soft)`, color: `var(--${h.tone})` }"
-            >
-              <component :is="ICON_MAP[h.icon] ?? ICON_MAP.Habits" :size="12" />
-            </div>
-            <span class="text-[13px] text-text-2 flex-1">{{ h.name }}</span>
-            <span class="text-[11px] text-text-4">
-              {{ h.freq === 'daily' ? '' : h.freq === 'mon,tue,wed,thu,fri' ? t('L–V', 'M–F') : h.freq === 'mon,wed,fri' ? 'L·X·V' : h.freq === 'sat,sun' ? t('Fin sem.', 'Wknd') : h.freq }}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Streaks + Journal -->
-    <div class="grid grid-cols-2 gap-4">
-      <div class="card">
-        <div class="card-title">{{ t('Rachas vivas', 'Active streaks') }}</div>
-        <div v-if="topStreaks.length === 0" class="text-text-3 text-[13px] mt-3">
-          {{ t('Aún sin rachas. Una marca a la vez.', 'No streaks yet. One mark at a time.') }}
-        </div>
-        <div class="flex flex-col gap-2.5 mt-3">
-          <div v-for="{ h, s } in topStreaks" :key="h.id" class="flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <div class="w-[26px] h-[26px] rounded-[7px] grid place-items-center shrink-0"
-                :style="{ background: `var(--${h.tone}-soft)`, color: `var(--${h.tone})` }">
-                <component :is="ICON_MAP[h.icon] ?? ICON_MAP.Habits" :size="12" />
-              </div>
-              <span class="text-[13px] font-medium text-text-1 truncate max-w-[120px]">{{ h.name }}</span>
-            </div>
-            <div class="flex items-center gap-1 shrink-0">
-              <FlameIcon :size="12" class="text-amber" />
-              <span class="tnum text-[13px] font-semibold text-amber">{{ s.current }}</span>
-              <span class="tnum text-text-3 text-[11px]">/ {{ s.best }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="flex items-center justify-between mb-3">
-          <div class="card-title mb-0">{{ t('Metas activas', 'Active goals') }}</div>
-          <button class="btn btn-ghost btn-sm" @click="router.push('/goals')">{{ t('Ver', 'View') }}</button>
-        </div>
-        <div v-if="activeMetas.length === 0" class="text-text-3 text-[13px] mt-1">
-          {{ t('Sin metas todavía.', 'No goals yet.') }}
-        </div>
-        <div class="flex flex-col gap-3 mt-1">
-          <div v-for="m in activeMetas.slice(0, 3)" :key="m.id" class="flex flex-col gap-1.5">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-[13px] font-medium text-text-1 truncate">{{ m.title }}</span>
-              <span v-if="m.metric" class="text-[11px] text-text-3 tnum shrink-0">{{ metaProgress(m) }}%</span>
-            </div>
-            <div v-if="m.metric" class="h-1 rounded-full overflow-hidden" style="background: var(--border-subtle)">
-              <div
-                class="h-full rounded-full transition-all"
-                :style="{ width: metaProgress(m) + '%', background: `var(--${m.tone})` }"
-              />
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -324,23 +270,11 @@ function handleToggle(habit: Habit) {
 </template>
 
 <style scoped>
-/* Vivid gradient hero — fixed look regardless of theme (like the warm-wash
-   card references), so every child's color is set explicitly here instead
-   of inheriting the surface text tokens. */
-.dash-hero {
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--amber) 72%, black) 0%,
-    color-mix(in srgb, var(--rose) 68%, black) 55%,
-    color-mix(in srgb, var(--lilac) 62%, black) 100%
-  );
-  border-color: transparent;
+.rutina {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: 14px; background: var(--bg-base);
+  transition: background var(--m-base);
 }
-.dash-hero-month { font-family: var(--font-display); font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.75); text-transform: uppercase; letter-spacing: 0.1em; }
-.dash-hero-day-num { font-family: var(--font-display); font-size: 56px; font-weight: 600; letter-spacing: -0.04em; color: #fff; }
-.dash-hero-weekday { color: rgba(255,255,255,0.75); }
-.dash-hero-greeting { color: #fff; }
-.dash-hero-phrase { color: rgba(255,255,255,0.88); }
-.dash-hero-intention { color: rgba(255,255,255,0.92); }
+.rutina:hover { background: var(--bg-elevated); }
 </style>
 

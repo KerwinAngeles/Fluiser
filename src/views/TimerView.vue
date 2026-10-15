@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useFluiserStore, ymd } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToday } from '@/composables/useToday'
 import { useSessionHistory } from '@/composables/useSessionHistory'
+import { useFlui } from '@/composables/useFlui'
 import { ICON_MAP, CheckIcon, XIcon, ChevronDownIcon, SkipFwdIcon, PlayIcon } from '@/components/icons/AppIcons'
 import EnergyPicker from '@/components/ui/EnergyPicker.vue'
 import SessionJourney from '@/components/ui/SessionJourney.vue'
+import Agua from '@/components/ui/Agua.vue'
+import Flui from '@/components/ui/Flui.vue'
 import type { Energy } from '@/types'
 
 const store = useFluiserStore()
 const t = useT()
 const { confirm } = useConfirm()
 const { today: todayStr } = useToday()
+const flui = useFlui()
 const habit = computed(() => store.activeTimer!)
 const ts    = computed(() => store.timerState!)
 
@@ -46,12 +50,10 @@ const reviewJourney = computed(() => {
   }))
 })
 
-const phaseColor = computed(() =>
-  phase.value === 'break' ? 'var(--mint)' : `var(--${habit.value?.tone ?? 'sky'})`,
-)
-const phaseSoft = computed(() =>
-  phase.value === 'break' ? 'var(--mint-soft)' : `var(--${habit.value?.tone ?? 'sky'}-soft)`,
-)
+// Noche palette: lavanda is the only accent allowed while in focus mode
+// (the work/break distinction is already carried by phaseLabel's text).
+const phaseColor = computed(() => 'var(--lilac)')
+const phaseSoft = computed(() => 'var(--lilac-soft)')
 const phaseLabel = computed(() => {
   if (phase.value === 'work')       return t('Enfoque', 'Focus')
   if (phase.value === 'break')      return t('Pausa', 'Break')
@@ -71,16 +73,12 @@ const gateButtonLabel = computed(() =>
     : t(`Comenzar sesión ${currentSession.value + 1}`, `Start session ${currentSession.value + 1}`),
 )
 
-// Ring
-const R    = 148
-const CIRC = 2 * Math.PI * R
 const totalSec = computed(() => {
   if (phase.value === 'flow-check') return 12
   if (phase.value === 'break')      return breakSec.value
   return workSec.value
 })
 const ringValue  = computed(() => totalSec.value ? 1 - remaining.value / totalSec.value : 1)
-const dashOffset = computed(() => CIRC * (1 - ringValue.value))
 
 const mm = computed(() => String(Math.floor(remaining.value / 60)).padStart(2, '0'))
 const ss = computed(() => String(remaining.value % 60).padStart(2, '0'))
@@ -140,7 +138,16 @@ function onKey(e: KeyboardEvent) {
 }
 
 onMounted(() => document.addEventListener('keydown', onKey))
-onUnmounted(() => document.removeEventListener('keydown', onKey))
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKey)
+  flui.fijar(null)
+})
+
+// Flui breathes along during the active session, and stands by normally
+// once the user reaches the review screen.
+watch(phase, (p) => {
+  flui.fijar(p === 'work' || p === 'break' || p === 'flow-check' || p === 'gate' ? 'enfoque' : null)
+}, { immediate: true })
 </script>
 
 <template>
@@ -290,27 +297,22 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.16em;font-weight:600;margin-bottom:36px;transition:color 400ms"
         :style="{ color: phaseColor }">{{ phaseLabel }}</div>
 
-      <!-- Ring -->
-      <div style="position:relative;width:320px;height:320px;margin:0 auto 36px">
-        <svg width="320" height="320" style="transform:rotate(-90deg)">
-          <circle cx="160" cy="160" r="148" stroke-width="6" fill="none" stroke="var(--border-subtle)" />
-          <circle cx="160" cy="160" r="148" stroke-width="6" fill="none"
-            :stroke="phaseColor" stroke-linecap="round"
-            :stroke-dasharray="CIRC" :stroke-dashoffset="dashOffset"
-            style="transition:stroke-dashoffset 1s linear,stroke 600ms"
-          />
-        </svg>
-        <div style="position:absolute;inset:0;display:grid;place-items:center">
-          <div>
-            <div class="tnum" style="font-family:var(--font-display);font-size:76px;font-weight:500;letter-spacing:-0.04em;line-height:1;font-variant-numeric:tabular-nums;color:var(--text-1)">
-              {{ mm }}<span style="color:var(--text-3)">:</span>{{ ss }}
-            </div>
-            <div class="muted" style="font-size:12px;margin-top:14px;text-transform:uppercase;letter-spacing:0.1em">
-              {{ t(`Sesión ${currentSession} de ${sessions}`, `Session ${currentSession} of ${sessions}`) }}
-            </div>
+      <!-- Agua timer -->
+      <div style="margin:0 auto 24px; display:flex; justify-content:center">
+        <Agua :progress="ringValue * 100" :size="320" tone="lilac">
+          <div class="tnum" style="font-family:var(--font-display);font-size:66px;font-weight:700;letter-spacing:-0.03em;line-height:1;font-variant-numeric:tabular-nums;color:var(--text-1)">
+            {{ mm }}<span style="color:var(--text-3)">:</span>{{ ss }}
           </div>
-        </div>
+          <div class="muted" style="font-size:12px;margin-top:14px;text-transform:uppercase;letter-spacing:0.1em">
+            {{ t(`Sesión ${currentSession} de ${sessions}`, `Session ${currentSession} of ${sessions}`) }}
+          </div>
+        </Agua>
       </div>
+
+      <Flui state="enfoque" :size="72" style="margin: 0 auto 16px" />
+      <p class="muted" style="font-size:13px;margin-bottom:28px">
+        {{ t('Respira con Flui: inhala mientras crece, exhala mientras baja.', 'Breathe with Flui: inhale as it grows, exhale as it settles.') }}
+      </p>
 
       <!-- Session dots -->
       <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:36px">
@@ -346,12 +348,26 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
 </template>
 
 <style scoped>
+/* Noche — a fixed dusk palette for focus sessions, same in both app themes.
+   Locally overriding these token names (rather than touching every inline
+   var(--text-1) etc. already used below) is enough to reskin the whole
+   screen through the normal CSS cascade. */
 .timer-gate {
   position: fixed;
   inset: 0;
-  background: rgba(5, 6, 8, 0.52);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background: var(--noche);
+  --bg-surface: var(--noche-3);
+  --bg-elevated: var(--noche-3);
+  --bg-glass: color-mix(in srgb, var(--noche-3) 70%, transparent);
+  --border-subtle: var(--noche-2);
+  --border-default: var(--noche-2);
+  --border-strong: color-mix(in srgb, var(--noche-2) 70%, var(--sobre-noche));
+  --text-1: var(--sobre-noche);
+  --text-2: var(--noche-suave);
+  --text-3: var(--noche-suave);
+  --text-4: color-mix(in srgb, var(--noche-suave) 50%, transparent);
+  --on-accent: var(--noche);
+  color: var(--text-1);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -415,7 +431,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
 .gate-continue-btn {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 12px 26px; font-size: 14.5px;
-  color: #0A0B0D; border-color: transparent;
+  color: var(--on-accent); border-color: transparent;
 }
 .gate-continue-btn:hover { filter: brightness(0.94); }
 
@@ -519,7 +535,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
 }
 .timer-ctrl-btn:hover { border-color: var(--border-strong); }
 .timer-ctrl-primary {
-  color: #0A0B0D; border-color: transparent;
+  color: var(--on-accent); border-color: transparent;
   min-width: 120px; justify-content: center;
 }
 .timer-ctrl-primary:hover { border-color: transparent; filter: brightness(0.92); }

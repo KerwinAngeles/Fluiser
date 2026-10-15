@@ -3,12 +3,11 @@ import { computed, onMounted } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useFlowJournal } from '@/composables/useFlowJournal'
 import { useT, useDays } from '@/composables/useLang'
-import { ICON_MAP, ClockIcon, GoalsIcon, WaveIcon, PauseIcon, AnalyticsIcon, LeafIcon, AlertTriangleIcon } from '@/components/icons/AppIcons'
+import { ICON_MAP } from '@/components/icons/AppIcons'
 import { ENERGY } from '@/types'
 import SessionJourney from '@/components/ui/SessionJourney.vue'
-import StatTile from '@/components/ui/StatTile.vue'
-import InsightCard from '@/components/ui/InsightCard.vue'
 import WeeklyFocusChart from '@/components/ui/WeeklyFocusChart.vue'
+import Flui from '@/components/ui/Flui.vue'
 
 const store = useFluiserStore()
 const t = useT()
@@ -84,66 +83,34 @@ function weekRingOffset(habitId: string, targetSec: number) {
       </div>
     </div>
 
-    <!-- ── WEEKLY STATS ── -->
-    <div class="fj-stats-row">
-      <StatTile
-        :icon="ClockIcon" tone="sky"
-        :value="weekStats.weekSec > 0 ? fmtHM(weekStats.weekSec) : '—'"
-        :label="t('esta semana', 'this week')"
-        :delta="weekStats.trend !== null ? `${weekStats.trend >= 0 ? '↑' : '↓'} ${Math.abs(weekStats.trend)}% ${t('vs semana pasada', 'vs last week')}` : undefined"
-        :delta-tone="weekStats.trend === null ? 'neutral' : weekStats.trend >= 0 ? 'up' : 'down'"
-      />
-      <StatTile
-        :icon="GoalsIcon" tone="mint"
-        :value="weekStats.weekCount"
-        :label="t('sesiones', 'sessions')"
-        :delta="weekStats.weekCount > 0 ? `${Math.round(weekStats.cleanPct * 100)}% ${t('sin pausas', 'no pauses')}` : undefined"
-        delta-tone="up"
-      />
-      <StatTile
-        :icon="WaveIcon" tone="amber"
-        :value="weekStats.flowSec > 0 ? fmtHM(weekStats.flowSec) : '—'"
-        :label="t('en flujo', 'in flow')"
-      />
-      <StatTile
-        :icon="PauseIcon" tone="lilac"
-        :value="weekStats.weekPausedSec > 0 ? fmtHM(weekStats.weekPausedSec) : '—'"
-        :label="t('pausado', 'paused')"
-        :delta="weekStats.pauseTrend !== null ? `${weekStats.pauseTrend >= 0 ? '↑' : '↓'} ${Math.abs(weekStats.pauseTrend)}% ${t('vs semana pasada', 'vs last week')}` : undefined"
-        :delta-tone="weekStats.pauseTrend === null ? 'neutral' : weekStats.pauseTrend > 0 ? 'down' : 'up'"
-      />
+    <!-- ── WEEKLY STATS (franja) ── -->
+    <div class="franja">
+      <div v-if="weekStats.weekSec === 0" class="vacio"><b>{{ t('0 min', '0 min') }}</b><span>{{ t('esta semana', 'this week') }}</span></div>
+      <div v-else><b class="tnum">{{ fmtHM(weekStats.weekSec) }}</b><span>{{ t('esta semana', 'this week') }}</span></div>
+      <div><b class="tnum">{{ weekStats.weekCount }}</b><span>{{ t('sesiones', 'sessions') }}</span></div>
+      <div v-if="weekStats.flowSec === 0" class="vacio"><b>{{ t('0 min', '0 min') }}</b><span>{{ t('en flujo', 'in flow') }}</span></div>
+      <div v-else><b class="tnum">{{ fmtHM(weekStats.flowSec) }}</b><span>{{ t('en flujo', 'in flow') }}</span></div>
+      <div v-if="weekStats.weekPausedSec === 0" class="vacio"><b>{{ t('0 min', '0 min') }}</b><span>{{ t('en pausa', 'paused') }}</span></div>
+      <div v-else><b class="tnum">{{ fmtHM(weekStats.weekPausedSec) }}</b><span>{{ t('en pausa', 'paused') }}</span></div>
     </div>
 
     <!-- ── WEEKLY FOCUS CHART ── -->
-    <WeeklyFocusChart class="mb-7" :data="dailyFocus" :trend="weekStats.trend" :dow-labels="dowShort" />
+    <WeeklyFocusChart class="mb-7" :data="dailyFocus" :trend="weekStats.trend" :dow-labels="dowShort" @start="store.setFocus(true)" />
 
-    <!-- ── "¿ESTÁ FUNCIONANDO?" PROGRESS ── -->
-    <div class="fj-progress-row">
-      <StatTile
-        :icon="AnalyticsIcon" tone="rose"
-        :value="`${Math.round(progressStats.recentPct * 100)}%`"
-        :label="t('consistencia (últimas 4 semanas)', 'consistency (last 4 weeks)')"
-        :delta="progressStats.consistencyTrend !== null ? `${progressStats.consistencyTrend >= 0 ? '↑' : '↓'} ${Math.abs(progressStats.consistencyTrend)}% ${t('vs 4 semanas anteriores', 'vs previous 4 weeks')}` : undefined"
-        :delta-tone="progressStats.consistencyTrend === null ? 'neutral' : progressStats.consistencyTrend >= 0 ? 'up' : 'down'"
-      />
-      <StatTile
-        :icon="LeafIcon" tone="mint"
-        :value="`${progressStats.formedCount}/${progressStats.totalHabits}`"
-        :label="t(`hábitos con ${progressStats.formedStreakDays}+ días de racha`, `habits with a ${progressStats.formedStreakDays}+ day streak`)"
-      />
+    <!-- ── "¿ESTÁ FUNCIONANDO?" PROGRESS (franja compacta) ── -->
+    <div class="franja compacta mb-7" style="grid-template-columns: repeat(2, 1fr)">
+      <div><b class="tnum">{{ Math.round(progressStats.recentPct * 100) }}%</b><span>{{ t('Consistencia, últimas 4 semanas', 'Consistency, last 4 weeks') }}</span></div>
+      <div><b class="tnum">{{ progressStats.formedCount }} {{ t('de', 'of') }} {{ progressStats.totalHabits }}</b><span>{{ t(`Hábitos con más de ${progressStats.formedStreakDays} días de racha`, `Habits with a ${progressStats.formedStreakDays}+ day streak`) }}</span></div>
     </div>
 
     <!-- ── TOP-PAUSED HABIT CALLOUT ── -->
-    <InsightCard
-      v-if="topPausedHabit && topPausedHabitCount > 1"
-      :icon="AlertTriangleIcon" tone="lilac"
-      class="mb-7"
-      :title="t('Hábito con más interrupciones', 'Most-interrupted habit')"
-      :message='t(
+    <div v-if="topPausedHabit && topPausedHabitCount > 1" class="flui-nota mb-7">
+      <Flui state="pista" :size="44" />
+      <span>{{ t(
         `"${topPausedHabit.name}" es tu hábito con más interrupciones esta semana — ${topPausedHabitCount} pausas.`,
         `"${topPausedHabit.name}" is your most-interrupted habit this week — ${topPausedHabitCount} pauses.`
-      )'
-    />
+      ) }}</span>
+    </div>
 
     <!-- ── HABIT ORBIT STRIP ── -->
     <div v-if="timerHabits.length > 0" class="fj-habits-section">
@@ -298,25 +265,6 @@ function weekRingOffset(habitId: string, targetSec: number) {
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
   white-space: nowrap;
-}
-
-/* ── Stats row (StatTile grid) ── */
-.fj-stats-row {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 28px;
-}
-@media (max-width: 520px) {
-  .fj-stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-/* ── Progress row ("is this working?") — StatTile grid ── */
-.fj-progress-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
 }
 
 /* ── Habit orbit strip ── */

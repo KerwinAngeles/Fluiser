@@ -4,6 +4,7 @@ const LS_KEY = 'fluiser.theme'
 
 export type BgEffect = 'ambient' | 'fireflies' | 'stars' | 'aurora' | 'none' | 'aurora-boreal' | 'cosmos' | 'zen' | 'terrario' | 'watercolor' | 'geometry' | 'code' | 'gym' | 'focus'
 export type AccentColor = 'sky' | 'lilac' | 'mint' | 'rose' | 'amber'
+export type FluiPresence = 'guia' | 'icono' | 'oculto'
 
 interface ThemeSettings {
   dark: boolean
@@ -14,6 +15,9 @@ interface ThemeSettings {
   bg: BgEffect
   accent: AccentColor
   reduceMotion: boolean
+  fluiPresence: FluiPresence
+  fluiConsejos: boolean
+  fluiCelebra: boolean
 }
 
 function loadTheme(): ThemeSettings {
@@ -25,7 +29,10 @@ function loadTheme(): ThemeSettings {
 }
 
 function defaults(): ThemeSettings {
-  return { dark: true, lang: 'es', heatmap: 'sky', density: 'regular', typeSize: 'regular', bg: 'ambient', accent: 'sky', reduceMotion: false }
+  return {
+    dark: true, lang: 'es', heatmap: 'sky', density: 'regular', typeSize: 'regular', bg: 'ambient', accent: 'sky', reduceMotion: false,
+    fluiPresence: 'guia', fluiConsejos: true, fluiCelebra: true,
+  }
 }
 
 let _instance: ReturnType<typeof createTheme> | null = null
@@ -40,14 +47,9 @@ function createTheme() {
   const bg          = ref<BgEffect>(saved.bg)
   const accent      = ref<AccentColor>(saved.accent)
   const reduceMotion = ref(saved.reduceMotion)
-
-  const ACCENT_VARS: Record<AccentColor, string> = {
-    sky:   '#5b9cf6',
-    lilac: '#b8a8e0',
-    mint:  '#6fcf97',
-    rose:  '#f29090',
-    amber: '#e8b575',
-  }
+  const fluiPresence = ref<FluiPresence>(saved.fluiPresence)
+  const fluiConsejos = ref(saved.fluiConsejos)
+  const fluiCelebra  = ref(saved.fluiCelebra)
 
   function applyTheme() {
     const root = document.documentElement
@@ -57,7 +59,14 @@ function createTheme() {
     const typeVal = typeSize.value === 'small' ? 0.94 : typeSize.value === 'large' ? 1.08 : 1
     root.style.setProperty('--density', String(densityVal))
     root.style.setProperty('--type-scale', String(typeVal))
-    root.style.setProperty('--accent-custom', ACCENT_VARS[accent.value])
+    // 'sky' (laguna) is the palette's default accent, so it needs no
+    // override — anything else points --accent at that tone's own token,
+    // and --accent-soft/--accent-glow (both color-mix'd from --accent)
+    // follow automatically.
+    if (accent.value === 'sky') root.style.removeProperty('--accent')
+    else root.style.setProperty('--accent', `var(--${accent.value})`)
+    if (reduceMotion.value) root.setAttribute('data-motion', 'reduce')
+    else root.removeAttribute('data-motion')
   }
 
   function saveTheme() {
@@ -66,16 +75,17 @@ function createTheme() {
         dark: dark.value, lang: lang.value, heatmap: heatmap.value,
         density: density.value, typeSize: typeSize.value,
         bg: bg.value, accent: accent.value, reduceMotion: reduceMotion.value,
+        fluiPresence: fluiPresence.value, fluiConsejos: fluiConsejos.value, fluiCelebra: fluiCelebra.value,
       }))
     } catch {}
   }
 
-  watch([dark, lang, heatmap, density, typeSize, bg, accent, reduceMotion], () => {
+  watch([dark, lang, heatmap, density, typeSize, bg, accent, reduceMotion, fluiPresence, fluiConsejos, fluiCelebra], () => {
     applyTheme()
     saveTheme()
   }, { immediate: true })
 
-  return { dark, lang, heatmap, density, typeSize, bg, accent, reduceMotion }
+  return { dark, lang, heatmap, density, typeSize, bg, accent, reduceMotion, fluiPresence, fluiConsejos, fluiCelebra }
 }
 
 export function useTheme() {

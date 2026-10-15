@@ -4,66 +4,85 @@
    Fluiser — design tokens
    ========================================================= */
 
+/* =========================================================
+   Paleta Río — integrated from fluiser-rediseno-v2.html.
+   Existing token NAMES kept (hundreds of call sites across every view
+   already bind to them) — only their VALUES change, so this is a safe
+   re-skin rather than a risky rename across the whole codebase. Several
+   --*-soft tokens move from static rgba to color-mix() so they follow a
+   runtime accent change automatically (Settings → Color de acento), the
+   same derivation the source document itself uses for --laguna-clara.
+   ========================================================= */
 :root {
-  --bg-base:        #0A0B0D;
-  --bg-app:         #0F1115;
-  --bg-surface:     #15181D;
-  --bg-elevated:    #1C2026;
-  --bg-glass:       rgba(28, 32, 38, 0.66);
-  --bg-glass-hi:    rgba(36, 40, 47, 0.78);
+  --bg-base:        #0D1817; /* bruma */
+  --bg-app:         #0D1817; /* bruma */
+  --bg-surface:     #132321; /* superficie */
+  --bg-elevated:    #1A2E2C; /* superficie-2 */
+  --bg-glass:       rgba(19, 35, 33, 0.70);
+  --bg-glass-hi:    rgba(26, 46, 44, 0.82);
 
-  --border-subtle:  rgba(255, 255, 255, 0.05);
-  --border-default: rgba(255, 255, 255, 0.08);
-  --border-strong:  rgba(255, 255, 255, 0.14);
+  --border-default: #233D3A; /* línea */
+  --border-subtle:  color-mix(in srgb, var(--border-default) 55%, transparent);
+  --border-strong:  color-mix(in srgb, var(--border-default) 70%, var(--text-1));
 
-  --text-1: rgba(255, 255, 255, 0.94);
-  --text-2: rgba(255, 255, 255, 0.60);
-  --text-3: rgba(255, 255, 255, 0.38);
-  --text-4: rgba(255, 255, 255, 0.22);
+  --text-1: #E2EEEB; /* tinta */
+  --text-2: #93ADA9; /* tinta suave */
+  --text-3: color-mix(in srgb, var(--text-2) 72%, transparent);
+  --text-4: color-mix(in srgb, var(--text-2) 46%, transparent);
 
-  --accent:      #7BB6FF;
-  --accent-deep: #5A99E8;
-  --accent-soft: rgba(123, 182, 255, 0.14);
-  --accent-glow: rgba(123, 182, 255, 0.28);
+  --accent:      #5EC1B6; /* laguna */
+  --accent-deep: color-mix(in srgb, var(--accent) 82%, black);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--bg-surface));
+  --accent-glow: color-mix(in srgb, var(--accent) 30%, transparent);
+  --on-accent:   #0D1817; /* sobre-laguna — laguna is light in dark mode, needs dark text */
   --sky:         var(--accent);
   --sky-soft:    var(--accent-soft);
-  --mint:        #86D6B0;
-  --mint-soft:   rgba(134, 214, 176, 0.14);
-  --amber:       #E8B575;
-  --amber-soft:  rgba(232, 181, 117, 0.14);
-  --rose:        #E89B95;
-  --rose-soft:   rgba(232, 155, 149, 0.14);
-  --lilac:       #B8A8E0;
-  --lilac-soft:  rgba(184, 168, 224, 0.14);
+  --mint:        #7DC08A; /* musgo — completado */
+  --mint-soft:   color-mix(in srgb, var(--mint) 20%, var(--bg-surface));
+  --amber:       #F0BA55; /* sol — rachas */
+  --amber-soft:  color-mix(in srgb, var(--amber) 20%, var(--bg-surface));
+  --rose:        #F09A8A; /* coral */
+  --rose-soft:   color-mix(in srgb, var(--rose) 18%, var(--bg-surface));
+  --lilac:       #A09DF0; /* lavanda */
+  --lilac-soft:  color-mix(in srgb, var(--lilac) 18%, var(--bg-surface));
+  --tierra:      #8C6B4F; /* maceta de la planta */
 
-  --hm-0: rgba(255, 255, 255, 0.035);
-  --hm-1: rgba(123, 182, 255, 0.18);
-  --hm-2: rgba(123, 182, 255, 0.36);
-  --hm-3: rgba(123, 182, 255, 0.58);
-  --hm-4: rgba(123, 182, 255, 0.86);
+  --hm-0: var(--bg-elevated);
+  --hm-1: color-mix(in srgb, var(--accent) 30%, var(--bg-elevated));
+  --hm-2: color-mix(in srgb, var(--accent) 55%, var(--bg-elevated));
+  --hm-3: color-mix(in srgb, var(--accent) 80%, var(--bg-elevated));
+  --hm-4: var(--accent);
+
+  /* Noche — fixed palette for Focus/Timer/PiP, same values in both themes
+     (a deliberate dusk, not a reskin of the ambient dark theme). Lavanda is
+     the only accent allowed there. */
+  --noche:       #15162B;
+  --noche-2:     #24264A;
+  --noche-3:     #1C1D38;
+  --sobre-noche: #ECEBFF;
+  --noche-suave: #A3A2D3;
+
+  /* Flui — the mascot's own fixed colors (gradient stops + ink), same in
+     both themes so the character doesn't change identity with the app. */
+  --flui-top:    #A4E6D9;
+  --flui-bottom: #3E9C94;
+  --flui-ink:    #123332;
+  --foco-top:    #D2D0FF;
+  --foco-bottom: #7E7BDA;
 
   --r-xs: 6px; --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 28px; --r-full: 999px;
-  /* Hero card radius — dashboard/insight headers (redesign Phase 0+), a step
-     softer than --r-xl so they read as the "special" cards on the screen. */
   --r-hero: 30px;
 
-  /* Redesign warm accent — expressed in terms of the theme-aware soft tones
-     above, so it needs no separate light/dark override. Used behind hero
-     headers only (Dashboard greeting, Flow Journal), never as a full-page
-     background — AppBackground.vue's ambient system stays untouched. */
   --warm-wash: linear-gradient(135deg, var(--amber-soft) 0%, var(--rose-soft) 55%, transparent 85%);
-
-  /* Big hero-stat number scale (streak counters, focus score) — distinct
-     from the smaller StatTile grid numbers, which use their own local size. */
   --type-stat: calc(44px * var(--type-scale));
 
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
-  --shadow-md: 0 4px 14px rgba(0,0,0,0.32), 0 1px 2px rgba(0,0,0,0.4);
-  --shadow-lg: 0 18px 40px rgba(0,0,0,0.46), 0 2px 4px rgba(0,0,0,0.5);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.35);
+  --shadow-md: 0 10px 30px rgba(0,0,0,.3);
+  --shadow-lg: 0 20px 50px rgba(0,0,0,.4);
   --inner-hi:  inset 0 1px 0 rgba(255,255,255,0.04);
 
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
-  --font-text:    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", ui-rounded, system-ui, sans-serif;
+  --font-text:    "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono:    ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
   --font-serif:   "New York", "Iowan Old Style", ui-serif, Georgia, serif;
 
@@ -78,53 +97,65 @@
 
   --transition: 220ms cubic-bezier(0.32, 0.72, 0, 1);
   --spring:     380ms cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Motion tokens from the source document — four speeds, two curves. New
+     components (Agua, Flui) use these directly; existing --transition/
+     --spring stay as they were to avoid retuning every existing animation. */
+  --m-rapido: 140ms;
+  --m-base:   260ms;
+  --m-suave:  520ms;
+  --m-respira: 8s;
+  --ease-agua:   cubic-bezier(.33, 1, .68, 1);
+  --ease-rebote: cubic-bezier(.34, 1.56, .64, 1);
 }
 
 [data-theme="light"] .shell-sidebar,
 [data-theme="light"] .shell-topbar,
 [data-theme="light"] .shell-tabbar {
-  background: rgba(244, 242, 238, 0.92);
+  background: rgba(238, 243, 241, 0.92);
 }
 
 [data-theme="light"] {
-  --bg-base:     #F4F2EE;
-  --bg-app:      #FAF8F4;
-  --bg-surface:  #FFFFFF;
-  --bg-elevated: #FFFFFF;
-  --bg-glass:    rgba(255, 255, 255, 0.72);
-  --bg-glass-hi: rgba(255, 255, 255, 0.86);
+  --bg-base:     #EEF3F1; /* bruma */
+  --bg-app:      #EEF3F1;
+  --bg-surface:  #FAFCFB; /* superficie */
+  --bg-elevated: #E4ECE9; /* superficie-2 */
+  --bg-glass:    rgba(250, 252, 251, 0.78);
+  --bg-glass-hi: rgba(250, 252, 251, 0.90);
 
-  --border-subtle:  rgba(20, 22, 26, 0.05);
-  --border-default: rgba(20, 22, 26, 0.09);
-  --border-strong:  rgba(20, 22, 26, 0.16);
+  --border-default: #D4E1DD; /* línea */
+  --border-subtle:  color-mix(in srgb, var(--border-default) 55%, transparent);
+  --border-strong:  color-mix(in srgb, var(--border-default) 70%, var(--text-1));
 
-  --text-1: rgba(18, 20, 24, 0.94);
-  --text-2: rgba(18, 20, 24, 0.58);
-  --text-3: rgba(18, 20, 24, 0.36);
-  --text-4: rgba(18, 20, 24, 0.20);
+  --text-1: #16302D; /* tinta */
+  --text-2: #56706C; /* tinta suave */
+  --text-3: color-mix(in srgb, var(--text-2) 72%, transparent);
+  --text-4: color-mix(in srgb, var(--text-2) 46%, transparent);
 
-  --accent:      #2E78D6;
-  --accent-deep: #1E5BAE;
-  --accent-soft: rgba(46, 120, 214, 0.10);
-  --accent-glow: rgba(46, 120, 214, 0.20);
-  --mint:        #3DA579;
-  --mint-soft:   rgba(61, 165, 121, 0.10);
-  --amber:       #C68A3F;
-  --amber-soft:  rgba(198, 138, 63, 0.10);
-  --rose:        #C66B62;
-  --rose-soft:   rgba(198, 107, 98, 0.10);
-  --lilac:       #806AB5;
-  --lilac-soft:  rgba(128, 106, 181, 0.10);
+  --accent:      #2C7A76; /* laguna */
+  --accent-deep: color-mix(in srgb, var(--accent) 82%, black);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, var(--bg-surface));
+  --accent-glow: color-mix(in srgb, var(--accent) 24%, transparent);
+  --on-accent:   #FFFFFF; /* sobre-laguna — laguna is dark here, needs light text */
+  --mint:        #4F9460; /* musgo */
+  --mint-soft:   color-mix(in srgb, var(--mint) 20%, var(--bg-surface));
+  --amber:       #C98A1E; /* sol */
+  --amber-soft:  color-mix(in srgb, var(--amber) 20%, var(--bg-surface));
+  --rose:        #C4604F; /* coral */
+  --rose-soft:   color-mix(in srgb, var(--rose) 18%, var(--bg-surface));
+  --lilac:       #A09DF0; /* lavanda (document keeps this one constant across themes) */
+  --lilac-soft:  color-mix(in srgb, var(--lilac) 18%, var(--bg-surface));
+  --tierra:      #C8A27F;
 
-  --hm-0: rgba(20, 22, 26, 0.04);
-  --hm-1: rgba(46, 120, 214, 0.20);
-  --hm-2: rgba(46, 120, 214, 0.40);
-  --hm-3: rgba(46, 120, 214, 0.62);
-  --hm-4: rgba(46, 120, 214, 0.90);
+  --hm-0: var(--bg-elevated);
+  --hm-1: color-mix(in srgb, var(--accent) 30%, var(--bg-elevated));
+  --hm-2: color-mix(in srgb, var(--accent) 55%, var(--bg-elevated));
+  --hm-3: color-mix(in srgb, var(--accent) 80%, var(--bg-elevated));
+  --hm-4: var(--accent);
 
-  --shadow-sm: 0 1px 2px rgba(20,22,26,0.05);
-  --shadow-md: 0 6px 18px rgba(20,22,26,0.06), 0 1px 2px rgba(20,22,26,0.04);
-  --shadow-lg: 0 24px 48px rgba(20,22,26,0.10), 0 2px 4px rgba(20,22,26,0.05);
+  --shadow-sm: 0 1px 2px rgba(22,48,45,.06);
+  --shadow-md: 0 10px 30px rgba(22,48,45,.08);
+  --shadow-lg: 0 20px 44px rgba(22,48,45,.10);
   --inner-hi:  inset 0 1px 0 rgba(255,255,255,0.6);
 }
 
@@ -145,6 +176,14 @@
 [data-theme="light"][data-heatmap="mono"] {
   --hm-1: rgba(20,22,26,0.10); --hm-2: rgba(20,22,26,0.24);
   --hm-3: rgba(20,22,26,0.44); --hm-4: rgba(20,22,26,0.76);
+}
+
+/* Global reduce-motion kill-switch (Settings → Reducir movimiento), wired by
+   useTheme.ts. Fluiser's own per-component reduceMotion checks (AppBackground)
+   keep working alongside this blanket rule for Flui/Agua and anything else. */
+[data-motion="reduce"] *, [data-motion="reduce"] *::before, [data-motion="reduce"] *::after {
+  animation: none !important;
+  transition: none !important;
 }
 
 @theme inline {
@@ -421,7 +460,7 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
   flex-shrink: 0;
 }
 .settings-btn:hover { background: var(--border-subtle); color: var(--text-1); }
-.settings-btn.active { background: var(--accent); color: #fff; }
+.settings-btn.active { background: var(--accent); color: var(--on-accent); }
 
 .logout-btn {
   display: inline-flex;
@@ -511,6 +550,31 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 .warm-wash-bg { background: var(--warm-wash); }
 .stat-num { font-family: var(--font-display); font-size: var(--type-stat); font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
 
+/* franja — a bare strip of figures, no card background, replacing a row of
+   identical stat-tile cards (Dashboard, Metas, Flujo). Ported from
+   fluiser-rediseno-v2.html. */
+.franja {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: var(--pad-5);
+}
+.franja > div { padding: var(--pad-3) var(--pad-4); border-left: 1px solid var(--border-default); }
+.franja > div:first-child { border-left: none; padding-left: 0; }
+.franja b { display: block; font-family: var(--font-display); font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; color: var(--text-1); }
+.franja span { color: var(--text-3); font-size: 13px; }
+.franja .vacio b { color: var(--text-3); font-size: 18px; font-family: var(--font-text); font-weight: 600; padding: 8px 0 3px; }
+.franja.compacta { grid-template-columns: repeat(4, 1fr); margin-bottom: 0; }
+.franja.compacta > div { padding: var(--pad-2) var(--pad-3); }
+.franja.compacta b { font-size: 26px; }
+@media (max-width: 640px) {
+  .franja { grid-template-columns: repeat(2, 1fr); }
+  .franja > div:nth-child(3) { border-left: none; padding-left: 0; }
+  .franja > div { border-top: 1px solid var(--border-default); }
+  .franja > div:nth-child(-n+2) { border-top: none; }
+}
+
 /* button */
 .btn {
   display: inline-flex; align-items: center; gap: 6px;
@@ -523,17 +587,57 @@ h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; letter-spac
 }
 .btn:hover { background: var(--bg-glass-hi); border-color: var(--border-strong); }
 .btn:active { transform: scale(0.96); transition-duration: 40ms; }
-.btn-primary { background: var(--accent); color: #0A0B0D; border-color: transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.08) inset; }
+.btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.08) inset; }
 .btn-primary:hover { background: var(--accent-deep); }
 .btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); }
 .btn-ghost:hover { background: var(--border-subtle); color: var(--text-1); }
-.btn-danger { background: var(--rose); color: #0A0B0D; border-color: transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.08) inset; }
+.btn-danger { background: var(--rose); color: var(--on-accent); border-color: transparent; box-shadow: 0 1px 2px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.08) inset; }
 .btn-danger:hover { filter: brightness(1.08); }
 .btn-sm { padding: 4px 8px; font-size: 12px; }
 
 /* pill */
 .pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 500; color: var(--text-2); background: var(--border-subtle); }
 .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.8; }
+
+/* estado-tag — status pills (vencida/activa/etc.), ported as-is */
+.estado-tag { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 10px; display: inline-block; white-space: nowrap; }
+.tag-coral  { background: var(--rose-soft);   color: var(--rose); }
+.tag-laguna { background: var(--accent-soft); color: var(--accent); }
+.tag-neutro { background: var(--bg-elevated); color: var(--text-2); }
+
+/* vacio-flui — Flui standing in for an empty state, ported as-is */
+.vacio-flui { display: flex; gap: 12px; align-items: center; color: var(--text-3); font-size: 14px; }
+
+/* flui-nota — Flui with a contextual nudge + actions, ported as-is */
+.flui-nota {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  background: var(--bg-base); border-radius: 16px; padding: 12px 14px;
+  font-size: 14px; color: var(--text-2); margin-top: 12px;
+}
+.flui-nota .acc { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* lista / hab / ico-h — shared row-list primitives, ported as-is */
+.lista { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 20px; overflow: hidden; }
+.ico-h { width: 38px; height: 38px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; flex-shrink: 0; }
+.hab { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; padding: 18px 20px; border-bottom: 1px solid var(--border-subtle); }
+.hab:last-child { border-bottom: none; }
+.hab .nom { font-weight: 700; font-size: 16px; color: var(--text-1); }
+.hab small { color: var(--text-3); font-size: 13px; }
+.hab-der { text-align: right; display: flex; align-items: center; gap: 14px; }
+.hab-der small { display: block; }
+@media (max-width: 760px) {
+  .hab { grid-template-columns: 1fr; }
+  .hab-der { justify-content: space-between; text-align: left; }
+}
+
+/* circ — round icon button (duration +/-), ported as-is */
+.circ {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  border: 1px solid var(--border-default); display: grid; place-items: center;
+  background: var(--bg-base); color: var(--text-1); font-size: 18px; cursor: pointer;
+  transition: background var(--m-base);
+}
+.circ:hover { background: var(--bg-elevated); }
 
 /* glass */
 .glass { background: var(--bg-glass); backdrop-filter: blur(22px) saturate(140%); -webkit-backdrop-filter: blur(22px) saturate(140%); border: 1px solid var(--border-default); border-radius: var(--r-lg); box-shadow: var(--shadow-md), var(--inner-hi); }
@@ -582,7 +686,7 @@ textarea.input { resize: vertical; min-height: 100px; font-family: var(--font-te
 }
 .h-check:hover { border-color: var(--text-3); transform: scale(1.05); }
 .h-check.done { background: var(--accent); border-color: var(--accent); }
-.h-check.done svg { stroke: #0A0B0D; }
+.h-check.done svg { stroke: var(--on-accent); }
 .h-check svg { width: 12px; height: 12px; stroke: transparent; stroke-width: 2.5; fill: none; stroke-linecap: round; stroke-linejoin: round; transition: stroke 200ms; }
 
 /* modal */

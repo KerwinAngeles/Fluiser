@@ -122,7 +122,7 @@ onUnmounted(() => {
   padding: 0 3px;
   border-radius: 999px;
   background: var(--rose);
-  color: #fff;
+  color: var(--on-accent);
   font-size: 9px;
   font-weight: 700;
   line-height: 14px;

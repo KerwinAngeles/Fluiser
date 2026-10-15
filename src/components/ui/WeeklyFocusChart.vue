@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useT } from '@/composables/useLang'
+import Flui from '@/components/ui/Flui.vue'
 
 const t = useT()
 
@@ -9,6 +10,8 @@ const props = defineProps<{
   trend: number | null
   dowLabels: string[]
 }>()
+
+defineEmits<{ start: [] }>()
 
 const hovered = ref<number | null>(null)
 
@@ -78,7 +81,9 @@ function fmtHours(sec: number) {
       </div>
     </template>
     <div v-else class="wfc-empty">
-      {{ t('Sin sesiones esta semana todavía.', 'No sessions this week yet.') }}
+      <Flui state="pista" :size="52" />
+      <span>{{ t('Sin sesiones esta semana.', 'No sessions this week.') }}</span>
+      <button class="btn btn-primary btn-sm" @click="$emit('start')">{{ t('Empezar una sesión', 'Start a session') }}</button>
     </div>
   </div>
 </template>
@@ -124,5 +129,5 @@ function fmtHours(sec: number) {
 }
 .wfc-labels { display: flex; gap: 8px; margin-top: 10px; }
 .wfc-labels span { flex: 1; text-align: center; font-size: 11px; color: var(--text-3); }
-.wfc-empty { padding: 32px 0; text-align: center; font-size: 13px; color: var(--text-3); font-style: italic; }
+.wfc-empty { padding: 24px 0; display: flex; flex-direction: column; align-items: center; gap: 10px; font-size: 13px; color: var(--text-3); }
 </style>

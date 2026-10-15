@@ -842,7 +842,7 @@ onUnmounted(() => {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 9px 20px;
   border-radius: 999px;
-  background: var(--amber); color: #0A0B0D;
+  background: var(--amber); color: var(--on-accent);
   font-size: 13px; font-weight: 600;
   border: none;
   box-shadow: 0 4px 16px var(--amber-soft);

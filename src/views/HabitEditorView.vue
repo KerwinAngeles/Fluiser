@@ -7,7 +7,7 @@ import { useToday } from '@/composables/useToday'
 import { useConfirm } from '@/composables/useConfirm'
 import { CATEGORIES } from '@/types'
 import { ICON_MAP, XIcon, CheckIcon, ArrowLeftIcon } from '@/components/icons/AppIcons'
-import RingProgress from '@/components/ui/RingProgress.vue'
+import Agua from '@/components/ui/Agua.vue'
 import type { Habit, CategoryId, HabitIcon, Tone, CategoryDef, HabitTimer } from '@/types'
 
 const ICON_OPTS: HabitIcon[] = ['Brain', 'Run', 'Book', 'Water', 'Pen', 'Heart', 'Leaf', 'Bolt', 'Wave', 'Moon', 'Sun', 'Habits']
@@ -153,7 +153,7 @@ function freqStyle(id: string) {
 function dayStyle(active: boolean) {
   return {
     background: active ? `var(--${tone.value})` : 'var(--bg-elevated)',
-    color: active ? '#0A0B0D' : 'var(--text-2)',
+    color: active ? 'var(--on-accent)' : 'var(--text-2)',
     border: '1px solid ' + (active ? `var(--${tone.value})` : 'var(--border-default)'),
   }
 }
@@ -162,10 +162,10 @@ function adjustDuration(delta: number) { timerDuration.value = Math.min(180, Mat
 function adjustSessions(delta: number) { timerSessions.value = Math.min(12, Math.max(1, timerSessions.value + delta)) }
 function adjustBreak(delta: number) { timerBreak.value = Math.min(60, Math.max(0, timerBreak.value + delta)) }
 
-// Session builder dial — purely a visual reference of duration against an
-// hour, not a drag-to-set control (the +/- steppers stay the only input,
-// same interaction as before, just around a ring instead of a bare number).
-const durationRingValue = computed(() => Math.min(timerDuration.value / 60, 1))
+// Session builder dial (Agua) — purely a visual reference of duration
+// against an hour, not a drag-to-set control (the +/- steppers stay the
+// only input).
+const durationProgress = computed(() => Math.min(timerDuration.value / 60, 1) * 100)
 
 function goBack() {
   router.push('/habits')
@@ -362,13 +362,15 @@ async function toggleActive() {
           </div>
 
           <div class="heb-builder" :style="{ opacity: timerEnabled ? 1 : 0.35, filter: timerEnabled ? 'none' : 'grayscale(.4)', pointerEvents: timerEnabled ? 'auto' : 'none' }">
-            <!-- Duration: big dial, matches the session-builder reference — the
-                 ring is decorative (fraction of an hour), the +/- buttons are
-                 still the only input. -->
+            <!-- Duration: Agua dial, matches fluiser-rediseno-v2.html's
+                 session builder — the fill is decorative (fraction of an
+                 hour), the +/- buttons are still the only input. -->
             <div class="heb-dial-row">
-              <button class="heb-dial-btn" @click="adjustDuration(-5)">–</button>
-              <RingProgress :size="120" :stroke="8" :value="durationRingValue" :color="`var(--${tone})`" :label="String(timerDuration)" :sub="t('min', 'min')" />
-              <button class="heb-dial-btn" @click="adjustDuration(5)">+</button>
+              <button class="circ" @click="adjustDuration(-5)">–</button>
+              <Agua :progress="durationProgress" :size="110" :tone="tone">
+                <div><b class="text-[34px] font-semibold leading-none" style="font-family: var(--font-display)">{{ timerDuration }}</b><small class="block text-[12px] text-text-3">{{ t('minutos', 'minutes') }}</small></div>
+              </Agua>
+              <button class="circ" @click="adjustDuration(5)">+</button>
             </div>
 
             <div class="heb-stepper-grid">
@@ -481,19 +483,13 @@ async function toggleActive() {
   background: #fff; top: 3px; transition: transform var(--transition);
 }
 
-/* Session builder — big dial for duration (matches the redesign reference),
-   Series/Descanso stay as compact steppers below it. */
+/* Session builder — Agua dial for duration, Series/Descanso stay as compact
+   steppers below it. */
 .heb-builder { transition: opacity var(--transition); }
 .heb-dial-row {
   display: flex; align-items: center; justify-content: center; gap: 20px;
   margin-bottom: 20px;
 }
-.heb-dial-btn {
-  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
-  border: 1px solid var(--border-default); background: var(--bg-elevated);
-  color: var(--text-1); font-size: 18px; cursor: pointer;
-}
-.heb-dial-btn:hover { background: var(--bg-glass-hi); }
 
 /* minmax(0, 1fr) instead of a bare 1fr — otherwise each grid track refuses to
    shrink past its content's min-content width (the "DESCANSO (MIN)" label

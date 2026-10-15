@@ -6,7 +6,18 @@ import { useT } from '@/composables/useLang'
 import { useToday } from '@/composables/useToday'
 import { CATEGORIES } from '@/types'
 import { ICON_MAP, PlusIcon } from '@/components/icons/AppIcons'
+import Gotas from '@/components/ui/Gotas.vue'
+import Planta from '@/components/ui/Planta.vue'
 import type { Habit, CategoryId } from '@/types'
+
+// Same 21-day threshold the app already uses for "hábito formado"
+// (FORMED_STREAK_DAYS in useFlowJournal.ts) — stage 3 blooms there.
+function plantStage(streak: number): 0 | 1 | 2 | 3 {
+  if (streak >= 21) return 3
+  if (streak >= 7) return 2
+  if (streak >= 1) return 1
+  return 0
+}
 
 const store = useFluiserStore()
 const router = useRouter()
@@ -44,7 +55,7 @@ const habitSummaries = computed(() =>
       : 0
     const totalDone = Object.keys(store.data.completions)
       .filter(k => k.startsWith(h.id + '|')).length
-    return { habit: h, streak, cells14, rate30, totalDone, doneToday: store.isDone(h.id, today.value) }
+    return { habit: h, streak, cells14, rate30, totalDone, doneToday: store.isDone(h.id, today.value), stage: plantStage(streak.current) }
   })
 )
 </script>
@@ -85,190 +96,53 @@ const habitSummaries = computed(() =>
       >{{ t(`Inactivos (${inactiveCount})`, `Inactive (${inactiveCount})`) }}</button>
     </div>
 
-    <!-- Habit cards -->
-    <TransitionGroup name="list" tag="div" class="flex flex-col gap-3 relative">
-      <div
-        v-for="s in habitSummaries" :key="s.habit.id"
-        class="habit-card"
-        :class="{ 'habit-card--inactive': s.habit.active === false }"
-        :style="{ '--tone': `var(--${s.habit.tone})`, '--tone-soft': `var(--${s.habit.tone}-soft)` }"
-        @click="openEdit(s.habit)"
-      >
-        <!-- Header row -->
-        <div class="hc-header">
-          <div class="hc-badge">
-            <span class="hc-badge-num tnum">{{ s.streak.current > 0 ? s.streak.current : '—' }}</span>
-          </div>
-          <div class="hc-info">
-            <div class="hc-name-row">
-              <div class="hc-name">{{ s.habit.name }}</div>
-              <div v-if="s.habit.active === false" class="hc-inactive-chip">{{ t('Inactivo', 'Inactive') }}</div>
+    <!-- Habit rows -->
+    <div class="lista">
+      <TransitionGroup name="list" tag="div" class="relative">
+        <div
+          v-for="s in habitSummaries" :key="s.habit.id"
+          class="hab"
+          :style="{ '--tone': `var(--${s.habit.tone})`, '--tone-soft': `var(--${s.habit.tone}-soft)` }"
+          @click="openEdit(s.habit)"
+        >
+          <span class="ico-h" :style="{ background: `var(--${s.habit.tone}-soft)`, color: `var(--${s.habit.tone})` }">
+            <component :is="ICON_MAP[s.habit.icon] ?? ICON_MAP.Habits" :size="17" />
+          </span>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="nom">{{ s.habit.name }}</span>
+              <span v-if="s.habit.active === false" class="hc-inactive-chip">{{ t('Inactivo', 'Inactive') }}</span>
             </div>
-            <div class="hc-meta">
-              {{ t(`${s.streak.current} día${s.streak.current === 1 ? '' : 's'} seguidos`, `${s.streak.current} day${s.streak.current === 1 ? '' : 's'} in a row`) }}
-              · {{ s.rate30 }}% {{ t('en 30 d', 'in 30d') }}
+            <small class="block">
+              {{ t(`${s.streak.current} día${s.streak.current === 1 ? '' : 's'} seguidos`, `${s.streak.current} day${s.streak.current === 1 ? '' : 's'} in a row`) }},
+              {{ s.rate30 }}% {{ t('en 30 días', 'in 30 days') }}
+            </small>
+            <Gotas :cells="s.cells14" :today="today" class="mt-2.5" />
+          </div>
+          <div class="hab-der">
+            <div>
+              <small>{{ t('Récord', 'Best') }} {{ s.streak.best }}</small>
+              <small>{{ t('Total', 'Total') }} {{ s.totalDone }}</small>
             </div>
-          </div>
-          <div class="hc-cat-icon">
-            <component :is="ICON_MAP[s.habit.icon] ?? ICON_MAP.Habits" :size="14" />
+            <Planta :stage="s.stage" />
           </div>
         </div>
 
-        <!-- 14-day bar track -->
-        <div class="hc-track">
-          <div v-for="cell in s.cells14" :key="cell.date" class="hc-track-col">
-            <div
-              class="hc-bar"
-              :data-state="cell.due === 0 ? 'off' : cell.count > 0 ? 'done' : 'miss'"
-              :data-today="cell.date === today ? 'yes' : 'no'"
-            />
-          </div>
+        <div v-if="habitSummaries.length === 0" key="__empty" class="py-12 text-center italic text-sm text-text-3">
+          {{ showInactive
+            ? t('No tienes hábitos inactivos.', 'You have no inactive habits.')
+            : t('Ningún hábito en esta categoría todavía.', 'No habits in this category yet.') }}
         </div>
-
-        <!-- Footer: record/total -->
-        <div class="hc-footer">
-          <div class="hc-footer-stats">
-            {{ t('récord', 'best') }} {{ s.streak.best }} · {{ t('total', 'total') }} {{ s.totalDone }}
-          </div>
-        </div>
-      </div>
-
-      <div v-if="habitSummaries.length === 0" key="__empty" class="py-12 text-center italic text-sm text-text-3">
-        {{ showInactive
-          ? t('No tienes hábitos inactivos.', 'You have no inactive habits.')
-          : t('Ningún hábito en esta categoría todavía.', 'No habits in this category yet.') }}
-      </div>
-    </TransitionGroup>
+      </TransitionGroup>
+    </div>
   </div>
 </template>
 
 <style scoped>
-/* ── Card — reference component, retoned to each habit's own tone instead
-   of a fixed purple, and fed entirely from data habitSummaries already
-   computed (streak, rate30, cells14, totalDone, doneToday). ── */
-.habit-card {
-  position: relative;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 18px;
-  padding: 16px 18px;
-  cursor: pointer;
-  overflow: hidden;
-  transition: background 160ms ease, border-color 160ms ease;
-}
-.habit-card::before {
-  content: '';
-  position: absolute;
-  top: -40%; right: -20%;
-  width: 60%; height: 140%;
-  background: radial-gradient(circle, var(--tone-soft) 0%, transparent 70%);
-  pointer-events: none;
-}
-.habit-card:hover { background: var(--bg-elevated); }
-.habit-card--inactive { opacity: 0.6; }
-
+.hab { cursor: pointer; transition: background var(--m-base); }
+.hab:hover { background: var(--bg-elevated); }
 .hc-inactive-chip {
-  font-size: 10.5px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--rose-soft);
-  color: var(--rose);
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-/* ── Header ── */
-.hc-header {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-.hc-badge {
-  width: 42px; height: 42px;
-  border-radius: 13px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  background: linear-gradient(135deg, var(--tone) 0%, color-mix(in srgb, var(--tone) 55%, black) 100%);
-  box-shadow: 0 4px 14px -4px var(--tone);
-}
-.hc-badge-num { font-size: 17px; font-weight: 700; color: #fff; letter-spacing: -0.02em; }
-.hc-info { flex: 1; min-width: 0; }
-.hc-name-row { display: flex; align-items: center; gap: 8px; }
-.hc-name {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-1);
-  line-height: 1.2;
-}
-.hc-meta {
-  font-size: 12px;
-  color: var(--text-3);
-  margin-top: 3px;
-}
-.hc-cat-icon {
-  width: 26px; height: 26px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  background: var(--tone-soft);
-  color: var(--tone);
-  opacity: 0.85;
-}
-
-/* ── 14-day bar track ── */
-.hc-track {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 30px;
-  margin-bottom: 14px;
-}
-.hc-track-col { flex: 1; display: flex; align-items: flex-end; height: 100%; }
-.hc-bar {
-  width: 100%;
-  border-radius: 3px;
-  transition: transform 160ms ease, box-shadow 160ms ease;
-}
-.hc-bar[data-state="done"] {
-  height: 100%;
-  background: var(--tone);
-  opacity: 0.82;
-}
-.hc-bar[data-state="done"][data-today="yes"] {
-  opacity: 1;
-  box-shadow: 0 0 10px var(--tone);
-}
-.hc-bar[data-state="miss"] {
-  height: 34%;
-  background: var(--border-default);
-}
-.hc-bar[data-state="miss"][data-today="yes"] {
-  background: var(--tone-soft);
-  box-shadow: inset 0 0 0 1.5px var(--tone);
-}
-.hc-bar[data-state="off"] {
-  height: 14%;
-  background: var(--border-subtle);
-  opacity: 0.4;
-}
-
-/* ── Footer: record/total ── */
-.hc-footer {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-}
-.hc-footer-stats {
-  font-size: 11.5px;
-  color: var(--text-3);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+  background: var(--rose-soft); color: var(--rose); flex-shrink: 0; white-space: nowrap;
 }
 </style>
