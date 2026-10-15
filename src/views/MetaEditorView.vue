@@ -184,7 +184,7 @@ async function deleteMeta() {
 
     <!-- Body -->
     <div class="heb-body">
-      <div class="col heb-col" style="gap: 20px;">
+      <div class="col heb-col">
 
         <div class="card">
           <div class="card-title">{{ t('Estado', 'Status') }}</div>
@@ -238,7 +238,7 @@ async function deleteMeta() {
           <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 10px;">
             <label
               v-for="h in store.activeHabits" :key="h.id"
-              style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 8px 10px; border-radius: 10px; transition: background 160ms;"
+              style="display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 6px 8px; border-radius: 10px; transition: background 160ms;"
               :style="{ background: habitIds.includes(h.id) ? `var(--${h.tone}-soft)` : 'var(--bg-elevated)' }"
             >
               <input type="checkbox" :checked="habitIds.includes(h.id)" @change="toggleHabit(h.id)" style="accent-color: var(--accent);" />
@@ -250,7 +250,7 @@ async function deleteMeta() {
 
       </div>
 
-      <div class="col heb-col" style="gap: 20px;">
+      <div class="col heb-col">
 
         <div class="card" :style="{ backgroundImage: `radial-gradient(140% 120% at 20% 0%, var(--${tone}-soft), transparent 60%)` }">
           <div class="card-title">{{ t('Vista previa en vivo', 'Live preview') }}</div>
@@ -273,7 +273,7 @@ async function deleteMeta() {
         </div>
 
         <div class="card">
-          <div class="row" style="justify-content: space-between; margin-bottom: 14px;">
+          <div class="row" style="justify-content: space-between; margin-bottom: 10px;">
             <div>
               <div style="font-weight: 700; font-size: 14px;">{{ t('Métrica de progreso', 'Progress metric') }}</div>
               <div class="muted" style="font-size: 12px; margin-top: 2px;">{{ t('Ej: kilómetros, usuarios, capítulos…', 'e.g. kilometers, users, chapters…') }}</div>
@@ -288,8 +288,8 @@ async function deleteMeta() {
           </div>
 
           <template v-if="hasMetric">
-            <div style="margin-bottom: 16px;">
-              <div class="card-title" style="margin-bottom: 8px;">{{ t('Nombre de la métrica', 'Metric name') }}</div>
+            <div style="margin-bottom: 10px;">
+              <div class="card-title" style="margin-bottom: 6px;">{{ t('Nombre de la métrica', 'Metric name') }}</div>
               <input class="input" :placeholder="t('Ej: Usuarios activos', 'e.g. Active users')" v-model="metricLabel" />
             </div>
 
@@ -308,7 +308,7 @@ async function deleteMeta() {
               </div>
             </div>
 
-            <div class="muted" style="font-size: 12px; line-height: 1.6; margin-top: 14px;">
+            <div class="muted" style="font-size: 12px; line-height: 1.6; margin-top: 10px;">
               {{ metricProgress }}% {{ t('completado', 'complete') }}
             </div>
           </template>
@@ -339,26 +339,33 @@ async function deleteMeta() {
 </template>
 
 <style scoped>
-.heb-screen { max-width: 1080px; }
+/* Compact density across the whole form — mirrors HabitEditorView.vue's
+   fix (the "new habit" screen requiring scroll), applied here since this
+   editor shares the same layout and the same problem. Overrides
+   .screen/.card/.screen-head's global padding (the scoped attribute
+   outweighs them at equal specificity). */
+.heb-screen { max-width: 1080px; padding: 20px 28px 24px; }
 
-.screen-head { justify-content: space-between; }
+.screen-head { justify-content: space-between; margin-bottom: 16px; }
+
+.card { padding: 16px; }
 
 .heb-hero {
   display: flex;
   align-items: center;
-  padding: 26px 28px;
-  margin-bottom: 20px;
+  padding: 18px 24px;
+  margin-bottom: 14px;
   background-repeat: no-repeat;
 }
 .heb-icon {
-  width: 64px; height: 64px; border-radius: 18px;
+  width: 56px; height: 56px; border-radius: 16px;
   display: grid; place-items: center; flex-shrink: 0;
   transition: all var(--transition);
 }
 .heb-name {
   background: none; border: none; border-bottom: 2px solid var(--border-default);
   color: var(--text-1); font-family: var(--font-display);
-  font-size: 26px; font-weight: 700; padding: 2px 0 6px;
+  font-size: 24px; font-weight: 700; padding: 2px 0 6px;
   min-width: 0; max-width: 100%; width: 100%;
   transition: border-color var(--transition);
 }
@@ -367,27 +374,32 @@ async function deleteMeta() {
 .heb-body {
   display: grid;
   grid-template-columns: 1.5fr 1fr;
-  gap: 20px;
+  gap: 14px;
 }
-.heb-col { display: flex; flex-direction: column; }
+.heb-col { display: flex; flex-direction: column; gap: 14px; }
 
-.heb-icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 10px; }
+.heb-icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); justify-items: center; gap: 6px; margin-top: 8px; }
 .heb-icon-btn {
-  aspect-ratio: 1; border-radius: 12px; display: grid; place-items: center;
+  width: 100%; max-width: 42px; aspect-ratio: 1; border-radius: 12px; display: grid; place-items: center;
   cursor: pointer; transition: all var(--transition);
 }
 
 .heb-swatch { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; transition: all var(--transition); }
 
-.heb-preview { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
-.heb-preview-icon { width: 50px; height: 50px; border-radius: 15px; display: grid; place-items: center; flex-shrink: 0; }
+.heb-preview { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.heb-preview-icon { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; flex-shrink: 0; }
 
 .heb-toggle {
   width: 38px; height: 22px; border-radius: 999px; position: relative;
   cursor: pointer; transition: background var(--transition); flex-shrink: 0;
+  padding: 0; border: none; box-sizing: border-box;
 }
 .heb-toggle-knob {
-  position: absolute; width: 16px; height: 16px; border-radius: 50%;
+  /* `left` must be explicit — a bare `button` gets UA default padding, which
+     otherwise becomes this absolutely-positioned knob's static position and
+     shifts both translateX states right, pushing the "on" knob past the
+     track's right edge. */
+  position: absolute; left: 0; width: 16px; height: 16px; border-radius: 50%;
   background: #fff; top: 3px; transition: transform var(--transition);
 }
 
@@ -396,7 +408,7 @@ async function deleteMeta() {
 
 .heb-foot {
   display: flex; align-items: center; justify-content: space-between;
-  margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-subtle);
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-subtle);
 }
 
 @media (max-width: 780px) {
