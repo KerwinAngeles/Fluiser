@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT, useCatLabel, useLang } from '@/composables/useLang'
 import { useToday } from '@/composables/useToday'
 import { useConfirm } from '@/composables/useConfirm'
+import { useFlui } from '@/composables/useFlui'
 import { CATEGORIES } from '@/types'
 import { ICON_MAP, XIcon, CheckIcon, ArrowLeftIcon } from '@/components/icons/AppIcons'
 import Agua from '@/components/ui/Agua.vue'
@@ -30,6 +31,8 @@ const catLabel = useCatLabel()
 const lang = useLang()
 const { today } = useToday()
 const { confirm } = useConfirm()
+const flui = useFlui()
+onMounted(() => flui.consejo('nuevo-habito', t('Ponle a tu hábito un nombre con verbo: Leer, Caminar, Programar.', 'Name your habit with a verb: Read, Walk, Code.')))
 
 const isNewHabit = route.name === 'habit-new'
 const habitId = isNewHabit ? crypto.randomUUID() : (route.params.id as string)

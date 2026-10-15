@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 import { useToday } from '@/composables/useToday'
+import { useFlui } from '@/composables/useFlui'
 import { ICON_MAP, PlusIcon } from '@/components/icons/AppIcons'
 import VisionItemModal from '@/components/modals/VisionItemModal.vue'
 import Flui from '@/components/ui/Flui.vue'
@@ -14,6 +15,8 @@ const store = useFluiserStore()
 const router = useRouter()
 const t = useT()
 const { today } = useToday()
+const flui = useFlui()
+onMounted(() => flui.consejo('metas', t('Vincula cada meta a un hábito. Así el progreso se suma solo.', 'Link each goal to a habit — progress adds up on its own.')))
 
 type Tab = 'metas' | 'vision' | 'review'
 const activeTab = ref<Tab>('metas')

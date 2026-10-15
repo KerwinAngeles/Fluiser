@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 import { useTheme } from '@/composables/useTheme'
+import { useFlui } from '@/composables/useFlui'
 import { ICON_MAP } from '@/components/icons/AppIcons'
 import HeatmapGrid from '@/components/ui/HeatmapGrid.vue'
 
 const store = useFluiserStore()
 const t = useT()
 const { lang } = useTheme()
+const flui = useFlui()
+onMounted(() => flui.consejo('consistencia', t('Acá ves en qué días vive mejor cada hábito.', 'See which days each habit sticks best.')))
 
 const tab = ref<'global' | 'habit'>('global')
 const selectedHabitId = ref<string>(store.data.habits[0]?.id ?? '')

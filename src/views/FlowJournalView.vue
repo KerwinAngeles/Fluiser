@@ -4,6 +4,7 @@ import { useFluiserStore } from '@/stores/fluiser'
 import { useFlowJournal } from '@/composables/useFlowJournal'
 import { useT, useDays } from '@/composables/useLang'
 import { ICON_MAP } from '@/components/icons/AppIcons'
+import { useFlui } from '@/composables/useFlui'
 import { ENERGY } from '@/types'
 import SessionJourney from '@/components/ui/SessionJourney.vue'
 import WeeklyFocusChart from '@/components/ui/WeeklyFocusChart.vue'
@@ -14,11 +15,15 @@ const t = useT()
 const days = useDays()
 const dowShort = computed(() => Array.from({ length: 7 }, (_, i) => days.get(i).slice(0, 3)))
 const { loading, activeFilter, byDate, habitStats, weekStats, topPausedHabitId, progressStats, dailyFocus, load } = useFlowJournal()
+const flui = useFlui()
 
 const topPausedHabit = computed(() => topPausedHabitId.value ? habitById(topPausedHabitId.value) : null)
 const topPausedHabitCount = computed(() => topPausedHabitId.value ? habitStats.value.get(topPausedHabitId.value)?.weekPauseCount ?? 0 : 0)
 
-onMounted(() => load())
+onMounted(() => {
+  load()
+  flui.consejo('flujo', t('Al terminar una sesión, anota cómo te fue. Acá vas a ver qué te cuesta más.', "When a session ends, jot down how it went. You'll see what's hardest here."))
+})
 
 const timerHabits = computed(() =>
   store.data.habits.filter((h) => h.timer?.enabled)

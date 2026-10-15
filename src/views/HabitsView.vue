@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFluiserStore } from '@/stores/fluiser'
 import { useT } from '@/composables/useLang'
 import { useToday } from '@/composables/useToday'
+import { useFlui } from '@/composables/useFlui'
 import { CATEGORIES } from '@/types'
 import { ICON_MAP, PlusIcon } from '@/components/icons/AppIcons'
 import Gotas from '@/components/ui/Gotas.vue'
@@ -23,6 +24,8 @@ const store = useFluiserStore()
 const router = useRouter()
 const t = useT()
 const { today } = useToday()
+const flui = useFlui()
+onMounted(() => flui.consejo('habitos', t('Cada hábito es una planta. Florece cuando llevas 21 días seguidos.', 'Every habit is a plant. It blooms once you hit a 21-day streak.')))
 
 const filter = ref<CategoryId | 'all'>('all')
 const showInactive = ref(false)

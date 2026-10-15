@@ -7,12 +7,14 @@ import { useT } from '@/composables/useLang'
 import { useTheme } from '@/composables/useTheme'
 import { useToday } from '@/composables/useToday'
 import { useSidebarCollapsed } from '@/composables/useSidebarCollapsed'
+import { useFlui } from '@/composables/useFlui'
 import { MONTHS_ES, MONTHS_EN } from '@/composables/useDateUtils'
 import {
   HomeIcon, HabitsIcon, HeatmapIcon,
   GoalsIcon, FocusIcon, TimelineIcon, SettingsIcon, SunIcon, MoonIcon, ChevronIcon,
 } from '@/components/icons/AppIcons'
 import NotificationBell from '@/components/layout/NotificationBell.vue'
+import Flui from '@/components/ui/Flui.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -21,6 +23,13 @@ const authStore = useAuthStore()
 const t = useT()
 const { lang, dark } = useTheme()
 const { collapsed, toggle: toggleCollapsed } = useSidebarCollapsed()
+const { estado: fluiEstado, consejoTexto, reaccionar: fluiReaccionar } = useFlui()
+
+const DEFAULT_TIP = () => t('Hola, soy Flui. Te ayudo a usar Fluiser sin estorbarte.', "Hi, I'm Flui. I'm here to help without getting in your way.")
+const dockTip = computed(() => consejoTexto.value ?? DEFAULT_TIP())
+function reshowTip() {
+  fluiReaccionar('pista', 6000)
+}
 
 const showLogoutModal = ref(false)
 const signingOut = ref(false)
@@ -91,6 +100,16 @@ function isActive(id: string) {
     <div class="shell-spacer" />
 
     <div class="shell-sidebar-foot">
+      <!-- Dock — Flui, always on screen, reacting to whatever you're doing -->
+      <div v-if="!collapsed" class="dock">
+        <Flui :state="fluiEstado" :size="50" />
+        <p>{{ dockTip }}</p>
+        <a href="#" @click.prevent="reshowTip">{{ t('Ver recorrido', 'Show tip again') }}</a>
+      </div>
+      <button v-else class="tc-btn dock-icon-only" :title="dockTip" @click="reshowTip">
+        <Flui :state="fluiEstado" :size="22" />
+      </button>
+
       <!-- Identity -->
       <div class="user-chip" @click="router.push('/settings')">
         <div class="avatar">{{ avatarLetter }}</div>
@@ -218,6 +237,27 @@ function isActive(id: string) {
 </template>
 
 <style scoped>
+/* ── Flui dock ── */
+.dock {
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: 18px;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 50px 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.dock p { font-size: 13px; line-height: 1.4; color: var(--text-2); margin: 0; }
+.dock a {
+  grid-column: 1 / -1;
+  font-size: 13px; font-weight: 700; color: var(--accent);
+  text-decoration: none; text-align: center; padding: 6px; border-radius: 10px;
+  border: 1px solid var(--border-default); background: var(--bg-surface);
+}
+.dock-icon-only { width: 100%; height: auto; padding: 8px 0; margin-bottom: 10px; display: grid; place-items: center; }
+
 .user-name {
   font-size: 13.5px;
   font-weight: 500;

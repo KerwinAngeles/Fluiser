@@ -1,13 +1,17 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { useTheme } from '@/composables/useTheme'
 import { useT } from '@/composables/useLang'
 import { useFluiserStore } from '@/stores/fluiser'
 import { usePushNotifications } from '@/composables/usePushNotifications'
+import { useFlui } from '@/composables/useFlui'
 import type { BgEffect, AccentColor } from '@/composables/useTheme'
 
 const { dark, lang, heatmap, density, typeSize, bg, accent, reduceMotion, fluiPresence, fluiConsejos, fluiCelebra } = useTheme()
 const t = useT()
 const store = useFluiserStore()
+const flui = useFlui()
+onMounted(() => flui.consejo('ajustes', t('Aquí decides cuánto hablo. Puedo quedarme solo como icono.', 'This is where you decide how much I talk. I can stick to just an icon.')))
 
 const isDemoMode = localStorage.getItem('fluiser_demo_mode') === 'true'
 const { isSupported: pushSupported, subscribed: remindersOn, loading: remindersLoading, error: remindersError, toggle: toggleReminders } = usePushNotifications()

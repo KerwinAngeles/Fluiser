@@ -31,7 +31,10 @@ const userName = computed(() => store.data.settings?.name || authStore.user?.use
 // KPIs already computed by useFlowJournal — Dashboard just reads them into
 // the franja (sesiones limpias, hábitos formados), no new calculations.
 const { weekStats, progressStats, load: loadFlow } = useFlowJournal()
-onMounted(() => loadFlow())
+onMounted(() => {
+  loadFlow()
+  flui.consejo('hoy', t('Marca un hábito con el círculo para completarlo hoy.', 'Tap the circle to mark a habit done for today.'))
+})
 
 const { today, hour } = useToday()
 const todayDate = computed(() => new Date(today.value + 'T00:00:00'))
