@@ -70,7 +70,7 @@ function isActive(id: string) {
         <div class="brand-mark-wrap">
           <div class="brand-mark-glow" />
           <div class="brand-mark">
-            <span class="brand-symbol">✦</span>
+            <Flui state="idle" :size="24" />
           </div>
         </div>
         <div v-if="!collapsed" class="brand-text">
@@ -161,7 +161,7 @@ function isActive(id: string) {
       <div class="brand-mark-wrap">
         <div class="brand-mark-glow" />
         <div class="brand-mark">
-          <span class="brand-symbol">✦</span>
+          <Flui state="idle" :size="24" />
         </div>
       </div>
       <div class="brand-name">Fluiser</div>
