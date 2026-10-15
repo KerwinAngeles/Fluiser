@@ -11,26 +11,35 @@ const PIP_WIDTH = 420
 const PIP_HEIGHT = 230
 const FONT = 'system-ui, -apple-system, "SF Pro Text", "Inter", sans-serif'
 
+// This window's own <style> can't resolve var(--token) — Document PiP opens
+// a blank document with no inherited stylesheet, and the canvas is drawn
+// with plain JS color strings anyway — so the Noche palette's *resolved*
+// values are read once from the opener's :root and baked in as literals.
+function cssVar(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v || fallback
+}
+
 const PALETTE = {
-  bgTop: 'oklch(0.19 0.01 260)',
-  bgBottom: 'oklch(0.14 0.012 260)',
-  track: 'oklch(0.3 0.01 260)',
-  divider: 'oklch(0.3 0.01 260 / 0.6)',
-  textPrimary: '#ffffff',
-  textSecondary: 'oklch(0.85 0.01 260)',
-  textTertiary: 'oklch(0.65 0.02 260)',
-  textQuaternary: 'oklch(0.6 0.02 260)',
-  textFooter: 'oklch(0.55 0.02 260)',
-  pillOff: 'oklch(0.35 0.01 260)',
+  bgTop: cssVar('--noche', '#15162B'),
+  bgBottom: cssVar('--noche-3', '#1C1D38'),
+  track: cssVar('--noche-2', '#24264A'),
+  divider: 'rgba(236, 235, 255, 0.12)',
+  textPrimary: cssVar('--sobre-noche', '#ECEBFF'),
+  textSecondary: cssVar('--noche-suave', '#A3A2D3'),
+  textTertiary: cssVar('--noche-suave', '#A3A2D3'),
+  textQuaternary: cssVar('--noche-suave', '#A3A2D3'),
+  textFooter: cssVar('--noche-suave', '#A3A2D3'),
+  pillOff: cssVar('--noche-2', '#24264A'),
 } as const
 
-const TONE_ACCENT: Record<string, string> = {
-  sky: '#7BB6FF',
-  mint: '#86D6B0',
-  amber: '#E8B575',
-  rose: '#E89B95',
-  lilac: '#B8A8E0',
-}
+// Lavanda is the only accent while a session is active (same rule as
+// TimerView's Noche screen) — no more per-habit tone in the PiP.
+const ACCENT = cssVar('--lilac', '#A09DF0')
+const FLUI_FOCO_TOP = '#D2D0FF'
+const FLUI_FOCO_BOTTOM = '#7E7BDA'
+const FLUI_INK = '#123332'
 
 // Document PiP gives us a real window with real DOM — the canvas above still
 // draws the ring/status exactly as before, this just adds a strip of actual
@@ -50,6 +59,7 @@ const PIP_DOC_STYLES = `
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: ${PALETTE.bgBottom}; }
   body { display: flex; flex-direction: column; }
   .fpc-canvas-wrap {
+    position: relative;
     flex: 1 1 auto; min-height: 0; overflow: hidden;
     display: flex; align-items: center; justify-content: center;
   }
@@ -70,7 +80,7 @@ const PIP_DOC_STYLES = `
     cursor: pointer; padding: 0;
   }
   .fpc-btn:hover { background: rgba(255,255,255,0.1); }
-  .fpc-btn-primary { background: var(--fpc-accent, ${TONE_ACCENT.sky}); border-color: transparent; color: #0A0B0D; }
+  .fpc-btn-primary { background: var(--fpc-accent, ${ACCENT}); border-color: transparent; color: ${PALETTE.bgTop}; }
   .fpc-btn-primary:hover { filter: brightness(0.94); }
   .fpc-btn svg { width: 13px; height: 13px; }
   /* Wide labeled button — only used where a single action needs to stay
@@ -80,6 +90,53 @@ const PIP_DOC_STYLES = `
     border-radius: 8px; font: 600 11.5px ${FONT}; white-space: nowrap;
   }
   .fpc-btn-wide svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+  /* Flui — breathing companion, overlaid on the canvas near the info
+     column. A trimmed port of Flui.vue's 'enfoque' state only (this window
+     never shows any other mood), since this is vanilla DOM with no access
+     to the main app's Vue components or :root custom properties. */
+  .fpc-flui-wrap { position: absolute; right: 7%; bottom: 9%; width: 42px; pointer-events: none; }
+  .fpc-flui { display: block; width: 100%; overflow: visible; }
+  .fpc-flui .f-shape { fill: url(#fpcFluiFoco); }
+  .fpc-flui .f-shadow { fill: #000; opacity: .14; }
+  .fpc-flui .f-stroke { fill: none; stroke: ${FLUI_INK}; stroke-width: 4.5; stroke-linecap: round; }
+  .fpc-flui .f-cheek { fill: #FF9D8A; opacity: .45; }
+  .fpc-flui .f-leaf { fill: #5E9E6B; }
+  .fpc-flui .f-leaf2 { fill: #9FD39B; }
+  .fpc-flui .f-stem { fill: none; stroke: #5E9E6B; stroke-width: 4; stroke-linecap: round; }
+  .fpc-flui .f-body { transform-box: view-box; transform-origin: 100px 190px; animation: fpc-f-breathe 8s ease-in-out infinite; }
+  .fpc-flui .f-sprout { transform-box: view-box; transform-origin: 100px 40px; animation: fpc-f-sway 4s ease-in-out infinite; }
+  @keyframes fpc-f-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+  @keyframes fpc-f-sway { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(7deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .fpc-flui .f-body, .fpc-flui .f-sprout { animation: none; }
+  }
+`
+
+// Only the 'enfoque' pose (closed eyes, soft smile) — the PiP never shows
+// Flui in any other mood.
+const FLUI_SVG = `
+  <svg class="fpc-flui" viewBox="0 0 200 205" aria-hidden="true">
+    <defs>
+      <linearGradient id="fpcFluiFoco" x1="0.3" y1="0" x2="0.6" y2="1">
+        <stop offset="0" stop-color="${FLUI_FOCO_TOP}"/><stop offset="1" stop-color="${FLUI_FOCO_BOTTOM}"/>
+      </linearGradient>
+    </defs>
+    <ellipse class="f-shadow" cx="100" cy="196" rx="44" ry="6"/>
+    <g class="f-body">
+      <g class="f-sprout">
+        <path class="f-stem" d="M100 42 C98 30 100 20 106 12"/>
+        <path class="f-leaf" d="M105 14 C112 0 132 1 138 8 C129 19 114 22 105 14Z"/>
+        <path class="f-leaf2" d="M101 27 C93 16 80 17 76 23 C84 31 95 31 101 27Z"/>
+      </g>
+      <path class="f-shape" d="M100 36 C118 60 158 94 158 134 C158 168 132 190 100 190 C68 190 42 168 42 134 C42 94 82 60 100 36Z"/>
+      <ellipse cx="74" cy="106" rx="8" ry="16" transform="rotate(-26 74 106)" fill="#fff" opacity=".55"/>
+      <circle cx="67" cy="152" r="9" class="f-cheek"/><circle cx="133" cy="152" r="9" class="f-cheek"/>
+      <path class="f-stroke" d="M72 134 Q81 143 90 134"/>
+      <path class="f-stroke" d="M110 134 Q119 143 128 134"/>
+      <path class="f-stroke" d="M92 155 Q100 162 108 155"/>
+    </g>
+  </svg>
 `
 
 function svgIcon(inner: string): string {
@@ -117,6 +174,41 @@ function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: num
   let s = text
   while (s.length > 1 && ctx.measureText(s + '…').width > maxWidth) s = s.slice(0, -1)
   return s + '…'
+}
+
+// Agua — the water-fill progress circle, drawn on canvas instead of a
+// stroked ring (mirrors Agua.vue's clipped-circle + animated wave fill).
+function drawAgua(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, progress: number, accent: string, track: string) {
+  ctx.save()
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.clip()
+
+  ctx.fillStyle = track
+  ctx.fillRect(cx - r, cy - r, r * 2, r * 2)
+
+  const levelY = cy + r - progress * (2 * r)
+  const waveAmp = 3
+  const waveLen = r * 0.9
+  const t = Date.now() / 1000
+  ctx.beginPath()
+  ctx.moveTo(cx - r - 4, levelY)
+  for (let x = cx - r - 4; x <= cx + r + 4; x += 4) {
+    const y = levelY + Math.sin((x / waveLen) * Math.PI * 2 + t * 1.6) * waveAmp
+    ctx.lineTo(x, y)
+  }
+  ctx.lineTo(cx + r + 4, cy + r + 4)
+  ctx.lineTo(cx - r - 4, cy + r + 4)
+  ctx.closePath()
+  ctx.fillStyle = hexToRgba(accent, 0.45)
+  ctx.fill()
+  ctx.restore()
+
+  ctx.strokeStyle = hexToRgba(accent, 0.5)
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.stroke()
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -255,19 +347,12 @@ export function useTimerPip() {
     const isReview = ts.phase === 'review'
     const isGate = ts.phase === 'gate'
     const gateIsBreak = ts.pendingPhase === 'break'
-    const toneKey = isBreak || (isGate && gateIsBreak) ? 'mint' : habit.tone
-    const accent = TONE_ACCENT[toneKey] ?? TONE_ACCENT.sky
+    const accent = ACCENT
 
-    // ── Left: ring ──
+    // ── Left: Agua ──
     const cx = 101
     const cy = 115
     const r = 64
-
-    ctx.strokeStyle = PALETTE.track
-    ctx.lineWidth = 9
-    ctx.beginPath()
-    ctx.arc(cx, cy, r, 0, Math.PI * 2)
-    ctx.stroke()
 
     let progress = 1
     if (isFlow) progress = (ts.remaining ?? 0) / 12
@@ -277,18 +362,7 @@ export function useTimerPip() {
     }
     progress = Math.max(0, Math.min(1, progress))
 
-    if (!isGate) {
-      ctx.save()
-      ctx.shadowColor = hexToRgba(accent, 0.7)
-      ctx.shadowBlur = 10
-      ctx.strokeStyle = accent
-      ctx.lineWidth = 9
-      ctx.lineCap = 'round'
-      ctx.beginPath()
-      ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress)
-      ctx.stroke()
-      ctx.restore()
-    }
+    drawAgua(ctx, cx, cy, r, isGate ? 0.5 : progress, accent, PALETTE.track)
 
     if (isReview) {
       ctx.strokeStyle = accent
@@ -406,11 +480,12 @@ export function useTimerPip() {
       ctx.textBaseline = 'alphabetic'
     }
 
+    // Bottom-left, not bottom-right — Document PiP overlays Flui in that
+    // corner (classic video PiP has no DOM overlay, so this is its only
+    // brand mark; keeping it here avoids the two colliding).
     ctx.fillStyle = PALETTE.textFooter
     ctx.font = `500 11px ${FONT}`
-    ctx.textAlign = 'right'
-    ctx.fillText('Fluiser', W - 18, H - 14)
-    ctx.textAlign = 'left'
+    ctx.fillText('Fluiser', 18, H - 14)
   }
 
   function ensureVideo(): HTMLVideoElement {
@@ -462,8 +537,7 @@ export function useTimerPip() {
     const habit = store.activeTimer
     if (!ts || !habit) return
 
-    const toneKey = ts.phase === 'break' || (ts.phase === 'gate' && ts.pendingPhase === 'break') ? 'mint' : habit.tone
-    controlsEl.style.setProperty('--fpc-accent', TONE_ACCENT[toneKey] ?? TONE_ACCENT.sky)
+    controlsEl.style.setProperty('--fpc-accent', ACCENT)
 
     if (ts.phase === 'gate') {
       const label = ts.pendingPhase === 'break'
@@ -521,6 +595,10 @@ export function useTimerPip() {
         const canvasWrap = win.document.createElement('div')
         canvasWrap.className = 'fpc-canvas-wrap'
         canvasWrap.append(canvas!)
+        const fluiWrap = win.document.createElement('div')
+        fluiWrap.className = 'fpc-flui-wrap'
+        fluiWrap.innerHTML = FLUI_SVG
+        canvasWrap.append(fluiWrap)
         win.document.body.append(canvasWrap)
         controlsEl = win.document.createElement('div')
         controlsEl.className = 'fpc-bar'
