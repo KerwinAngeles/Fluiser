@@ -29,9 +29,6 @@ const PALETTE = {
   textPrimary: cssVar('--sobre-noche', '#ECEBFF'),
   textSecondary: cssVar('--noche-suave', '#A3A2D3'),
   textTertiary: cssVar('--noche-suave', '#A3A2D3'),
-  textQuaternary: cssVar('--noche-suave', '#A3A2D3'),
-  textFooter: cssVar('--noche-suave', '#A3A2D3'),
-  pillOff: cssVar('--noche-2', '#24264A'),
 } as const
 
 // Lavanda is the only accent while a session is active (same rule as
@@ -66,16 +63,16 @@ const PIP_DOC_STYLES = `
   .fpc-canvas-wrap canvas { display: block; width: auto; height: auto; max-width: 100%; max-height: 100%; }
   .fpc-bar {
     flex: 0 0 auto;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 14px;
     height: ${DOC_PIP_CONTROLS_HEIGHT}px; padding: 0 12px; box-sizing: border-box;
     background: ${PALETTE.bgBottom}; border-top: 1px solid rgba(255,255,255,0.08);
     font-family: ${FONT};
   }
   /* Compact icon buttons (pause/skip/finish) — tooltip carries the label */
   .fpc-btn {
-    flex: 0 0 auto; width: 32px; height: 32px;
+    flex: 0 0 auto; width: 36px; height: 36px;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 9px; border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 50%; border: 1px solid rgba(255,255,255,0.14);
     background: rgba(255,255,255,0.05); color: #fff;
     cursor: pointer; padding: 0;
   }
@@ -91,11 +88,12 @@ const PIP_DOC_STYLES = `
   }
   .fpc-btn-wide svg { width: 12px; height: 12px; flex-shrink: 0; }
 
-  /* Flui — breathing companion, overlaid on the canvas near the info
-     column. A trimmed port of Flui.vue's 'enfoque' state only (this window
-     never shows any other mood), since this is vanilla DOM with no access
-     to the main app's Vue components or :root custom properties. */
-  .fpc-flui-wrap { position: absolute; right: 7%; bottom: 9%; width: 42px; pointer-events: none; }
+  /* Flui — breathing companion, overlaid on the canvas right under the
+     habit name/status text (matches the reference mockup). A trimmed port
+     of Flui.vue's 'enfoque' state only (this window never shows any other
+     mood), since this is vanilla DOM with no access to the main app's Vue
+     components or :root custom properties. */
+  .fpc-flui-wrap { position: absolute; left: 54%; top: 56%; width: 40px; pointer-events: none; }
   .fpc-flui { display: block; width: 100%; overflow: visible; }
   .fpc-flui .f-shape { fill: url(#fpcFluiFoco); }
   .fpc-flui .f-shadow { fill: #000; opacity: .14; }
@@ -151,14 +149,6 @@ const ICON = {
   pause: svgIcon('<rect x="6" y="4" width="4" height="16" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" fill="currentColor" stroke="none"/>'),
   skip: svgIcon('<polygon points="5 4 15 12 5 20 5 4" fill="currentColor" stroke="none"/><line x1="19" y1="5" x2="19" y2="19"/>'),
   check: svgIcon('<path d="M5 12.5l4.5 4.5L19 7"/>'),
-}
-
-function darken(hex: string, factor: number): string {
-  const h = hex.replace('#', '')
-  const r = Math.round(parseInt(h.substring(0, 2), 16) * factor)
-  const g = Math.round(parseInt(h.substring(2, 4), 16) * factor)
-  const b = Math.round(parseInt(h.substring(4, 6), 16) * factor)
-  return `rgb(${r}, ${g}, ${b})`
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -219,31 +209,6 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.arcTo(x, y + h, x, y, r)
   ctx.arcTo(x, y, x + w, y, r)
   ctx.closePath()
-}
-
-function drawBadge(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, accent: string, letter: string) {
-  roundRect(ctx, x, y, size, size, size * 0.3)
-  ctx.fillStyle = darken(accent, 0.78)
-  ctx.fill()
-  ctx.fillStyle = PALETTE.textPrimary
-  ctx.font = `700 ${Math.round(size * 0.44)}px ${FONT}`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(letter, x + size / 2, y + size / 2 + 1)
-  ctx.textAlign = 'left'
-  ctx.textBaseline = 'alphabetic'
-}
-
-function drawSessionPills(ctx: CanvasRenderingContext2D, x: number, y: number, sessions: number, current: number, accent: string) {
-  const w = 14
-  const h = 4
-  const gap = 4
-  for (let i = 1; i <= sessions; i++) {
-    roundRect(ctx, x, y, w, h, 2)
-    ctx.fillStyle = i <= current ? accent : PALETTE.pillOff
-    ctx.fill()
-    x += w + gap
-  }
 }
 
 export function useTimerPip() {
@@ -327,6 +292,21 @@ export function useTimerPip() {
       bgGradient.addColorStop(1, PALETTE.bgBottom)
     }
     ctx.fillStyle = bgGradient
+    ctx.fillRect(0, 0, W, H)
+
+    // Soft violet/lilac washes — the reference mockup's card isn't a flat
+    // gradient, it has a diagonal wavy tint. Two oversized, low-opacity
+    // radial gradients fake that without needing an actual blur filter.
+    const washTL = ctx.createRadialGradient(W * 0.1, H * 0.05, 0, W * 0.1, H * 0.05, W * 0.6)
+    washTL.addColorStop(0, hexToRgba(ACCENT, 0.14))
+    washTL.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = washTL
+    ctx.fillRect(0, 0, W, H)
+
+    const washBR = ctx.createRadialGradient(W * 0.92, H, 0, W * 0.92, H, W * 0.55)
+    washBR.addColorStop(0, hexToRgba('#6D5BD0', 0.22))
+    washBR.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = washBR
     ctx.fillRect(0, 0, W, H)
 
     const ts = store.timerState
@@ -417,75 +397,39 @@ export function useTimerPip() {
     ctx.stroke()
 
     // ── Right: info column ──
-    // Rows are spaced with generous, explicit gaps (badge/name → phase →
-    // status → session) so labels never read as visually stuck together.
-    const nameY = 50
-    const phaseY = 100
-    const statusDotY = 134
-    const sessionY = 166
+    // Just the habit name and one combined status line underneath it —
+    // matches the reference mockup (no avatar badge, no separate phase
+    // label, no session-pill row; Flui sits below, overlaid by the DOM
+    // wrap in Document PiP mode).
+    const titleY = 88
+    const subtitleY = 118
 
-    const letter = (habit.name.trim()[0] ?? '?').toUpperCase()
-    drawBadge(ctx, rx, nameY, 30, accent, letter)
     ctx.fillStyle = PALETTE.textPrimary
-    ctx.font = `700 16px ${FONT}`
+    ctx.font = `700 19px ${FONT}`
     ctx.textBaseline = 'middle'
-    ctx.fillText(truncateText(ctx, habit.name, W - rx - 30 - 10 - 20), rx + 40, nameY + 15)
+    ctx.fillText(truncateText(ctx, habit.name, W - rx - 16), rx, titleY)
     ctx.textBaseline = 'alphabetic'
-
-    let phaseLabel = t('Enfoque', 'Focus')
-    if (isReview) phaseLabel = t('Sesión completa', 'Session complete')
-    else if (isFlow) phaseLabel = t('¿Sigues en flujo?', 'Still in flow?')
-    else if (isGate) phaseLabel = gateIsBreak ? t('Lista para la pausa', 'Ready for a break') : t('Lista la siguiente', 'Next one ready')
-    else if (isBreak) phaseLabel = t('Pausa', 'Break')
-    ctx.fillStyle = accent
-    ctx.font = `700 12px ${FONT}`
-    ctx.fillText(truncateText(ctx, phaseLabel.toUpperCase(), W - rx - 20), rx, phaseY)
-
-    ctx.beginPath()
-    ctx.arc(rx + 3.5, statusDotY, 3.5, 0, Math.PI * 2)
-    ctx.fillStyle = accent
-    ctx.fill()
 
     let statusText = t('En marcha', 'Running')
     if (isReview) statusText = t('Guardado', 'Saved')
     else if (isFlow) statusText = t('Sesión terminada', 'Session ended')
-    else if (isGate) statusText = t('Continúa manualmente', 'Continue manually')
+    else if (isGate) statusText = gateIsBreak ? t('Lista para la pausa', 'Ready for a break') : t('Lista la siguiente', 'Next one ready')
     else if (ts.paused) statusText = t('Pausado', 'Paused')
+    else if (isBreak) statusText = t('En pausa', 'On a break')
+
+    let subtitle = statusText
+    if (!isFlow && !isGate && ts.sessions > 1) {
+      subtitle += t(`, sesión ${ts.currentSession} de ${ts.sessions}`, `, session ${ts.currentSession} of ${ts.sessions}`)
+    } else if (isGate) {
+      subtitle = t('Toca continuar en la app', 'Tap continue in the app')
+    } else if (ts.flowExtensions > 0) {
+      subtitle += ` · +${ts.flowExtensions * 5} ${t('min', 'min')}`
+    }
     ctx.fillStyle = PALETTE.textSecondary
     ctx.font = `500 13px ${FONT}`
     ctx.textBaseline = 'middle'
-    ctx.fillText(statusText, rx + 14, statusDotY + 1)
+    ctx.fillText(truncateText(ctx, subtitle, W - rx - 16), rx, subtitleY)
     ctx.textBaseline = 'alphabetic'
-
-    if (!isFlow && !isGate && ts.sessions > 1) {
-      const sessionLabel = t(`Sesión ${ts.currentSession} de ${ts.sessions}`, `Session ${ts.currentSession} of ${ts.sessions}`)
-      ctx.fillStyle = PALETTE.textQuaternary
-      ctx.font = `500 12px ${FONT}`
-      ctx.textBaseline = 'middle'
-      ctx.fillText(sessionLabel, rx, sessionY)
-      const labelWidth = ctx.measureText(sessionLabel).width
-      drawSessionPills(ctx, rx + labelWidth + 8, sessionY - 4, ts.sessions, ts.currentSession, accent)
-      ctx.textBaseline = 'alphabetic'
-    } else if (isGate) {
-      ctx.fillStyle = PALETTE.textQuaternary
-      ctx.font = `500 12px ${FONT}`
-      ctx.textBaseline = 'middle'
-      ctx.fillText(t('Toca continuar en la app', 'Tap continue in the app'), rx, sessionY)
-      ctx.textBaseline = 'alphabetic'
-    } else if (ts.flowExtensions > 0) {
-      ctx.fillStyle = PALETTE.textQuaternary
-      ctx.font = `500 12px ${FONT}`
-      ctx.textBaseline = 'middle'
-      ctx.fillText(`+${ts.flowExtensions * 5} ${t('min de flujo', 'min flow')}`, rx, sessionY)
-      ctx.textBaseline = 'alphabetic'
-    }
-
-    // Bottom-left, not bottom-right — Document PiP overlays Flui in that
-    // corner (classic video PiP has no DOM overlay, so this is its only
-    // brand mark; keeping it here avoids the two colliding).
-    ctx.fillStyle = PALETTE.textFooter
-    ctx.font = `500 11px ${FONT}`
-    ctx.fillText('Fluiser', 18, H - 14)
   }
 
   function ensureVideo(): HTMLVideoElement {
