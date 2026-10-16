@@ -205,7 +205,7 @@ function exportData() {
           </div>
         </div>
 
-        <!-- Mapa de calor + Idioma in a row -->
+        <!-- Mapa de calor -->
         <div class="sp-card">
           <div class="sp-card-title">{{ t('Mapa de calor', 'Heatmap') }}</div>
           <div class="sp-toggle-group">
@@ -217,64 +217,73 @@ function exportData() {
           </div>
         </div>
 
-        <!-- Idioma -->
-        <div class="sp-card">
-          <div class="sp-card-title">{{ t('Idioma', 'Language') }}</div>
-          <div class="sp-toggle-group">
-            <button :class="['sp-tog', lang === 'es' ? 'active' : '']" @click="lang = 'es'">Español</button>
-            <button :class="['sp-tog', lang === 'en' ? 'active' : '']" @click="lang = 'en'">English</button>
-          </div>
-        </div>
-
-        <!-- Notificaciones -->
-        <div class="sp-card">
-          <div class="sp-card-title">{{ t('Notificaciones', 'Notifications') }}</div>
-          <div class="sp-row" style="margin-bottom:0">
-            <span class="sp-row-label">{{ t('Recordatorios', 'Reminders') }}</span>
-            <button
-              class="sp-switch"
-              :class="{ on: remindersOn }"
-              :disabled="!pushSupported || isDemoMode || remindersLoading"
-              @click="toggleReminders(!remindersOn)"
-            >
-              <span class="sp-switch-thumb" />
-            </button>
-          </div>
-          <p v-if="isDemoMode" class="sp-hint">{{ t('No disponible en modo demo.', 'Not available in demo mode.') }}</p>
-          <p v-else-if="!pushSupported" class="sp-hint">{{ t('Tu navegador no soporta notificaciones push.', 'Your browser does not support push notifications.') }}</p>
-          <p v-else-if="remindersError" class="sp-hint sp-hint-error">{{ remindersError }}</p>
-        </div>
-
-        <!-- Datos -->
-        <div class="sp-card">
-          <div class="sp-card-title">{{ t('Datos', 'Data') }}</div>
-          <button class="sp-action-btn" @click="exportData">
-            {{ t('Exportar datos (JSON)', 'Export data (JSON)') }}
-          </button>
-        </div>
-
       </div>
 
-      <!-- ── Right column: Backgrounds ── -->
-      <div class="sp-card sp-bg-card">
-        <div class="sp-card-title">{{ t('Fondo animado', 'Animated background') }}</div>
-        <div class="bg-grid">
-          <button
-            v-for="b in bgOptions" :key="b.id"
-            class="bg-item"
-            :class="{ active: bg === b.id }"
-            @click="bg = b.id"
-          >
-            <div
-              class="bg-thumb"
-              :style="{ background: b.preview === 'none' ? 'var(--bg-base)' : b.preview }"
+      <!-- ── Right column: Backgrounds + the shorter cards, to balance both
+           columns' height so the page fits one viewport without scroll
+           (the left column alone was taller than the right one, which had
+           a lot of unused space below the background grid). ── -->
+      <div class="settings-col">
+
+        <div class="sp-card sp-bg-card">
+          <div class="sp-card-title">{{ t('Fondo animado', 'Animated background') }}</div>
+          <div class="bg-grid">
+            <button
+              v-for="b in bgOptions" :key="b.id"
+              class="bg-item"
+              :class="{ active: bg === b.id }"
+              @click="bg = b.id"
             >
-              <span v-if="b.preview === 'none'" class="bg-none-icon">—</span>
-              <span v-if="bg === b.id" class="bg-selected-check">✓</span>
-            </div>
-            <span class="bg-label">{{ t(b.label[0], b.label[1]) }}</span>
-          </button>
+              <div
+                class="bg-thumb"
+                :style="{ background: b.preview === 'none' ? 'var(--bg-base)' : b.preview }"
+              >
+                <span v-if="b.preview === 'none'" class="bg-none-icon">—</span>
+                <span v-if="bg === b.id" class="bg-selected-check">✓</span>
+              </div>
+              <span class="bg-label">{{ t(b.label[0], b.label[1]) }}</span>
+            </button>
+          </div>
         </div>
+
+        <div class="sp-row-cards">
+          <!-- Idioma -->
+          <div class="sp-card">
+            <div class="sp-card-title">{{ t('Idioma', 'Language') }}</div>
+            <div class="sp-toggle-group">
+              <button :class="['sp-tog', lang === 'es' ? 'active' : '']" @click="lang = 'es'">Español</button>
+              <button :class="['sp-tog', lang === 'en' ? 'active' : '']" @click="lang = 'en'">English</button>
+            </div>
+          </div>
+
+          <!-- Notificaciones -->
+          <div class="sp-card">
+            <div class="sp-card-title">{{ t('Notificaciones', 'Notifications') }}</div>
+            <div class="sp-row" style="margin-bottom:0">
+              <span class="sp-row-label">{{ t('Recordatorios', 'Reminders') }}</span>
+              <button
+                class="sp-switch"
+                :class="{ on: remindersOn }"
+                :disabled="!pushSupported || isDemoMode || remindersLoading"
+                @click="toggleReminders(!remindersOn)"
+              >
+                <span class="sp-switch-thumb" />
+              </button>
+            </div>
+            <p v-if="isDemoMode" class="sp-hint">{{ t('No disponible en modo demo.', 'Not available in demo mode.') }}</p>
+            <p v-else-if="!pushSupported" class="sp-hint">{{ t('Tu navegador no soporta notificaciones push.', 'Your browser does not support push notifications.') }}</p>
+            <p v-else-if="remindersError" class="sp-hint sp-hint-error">{{ remindersError }}</p>
+          </div>
+
+          <!-- Datos -->
+          <div class="sp-card">
+            <div class="sp-card-title">{{ t('Datos', 'Data') }}</div>
+            <button class="sp-action-btn" @click="exportData">
+              {{ t('Exportar datos (JSON)', 'Export data (JSON)') }}
+            </button>
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -299,6 +308,14 @@ function exportData() {
   flex-direction: column;
   gap: 12px;
 }
+
+.sp-row-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.sp-row-cards .sp-card { display: flex; flex-direction: column; }
+.sp-row-cards .sp-action-btn { margin-top: auto; }
 
 /* ── Cards ── */
 .sp-card {
