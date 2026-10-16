@@ -13,7 +13,6 @@ import {
   HomeIcon, HabitsIcon, HeatmapIcon,
   GoalsIcon, FocusIcon, TimelineIcon, SettingsIcon, SunIcon, MoonIcon, ChevronIcon,
 } from '@/components/icons/AppIcons'
-import NotificationBell from '@/components/layout/NotificationBell.vue'
 import Flui from '@/components/ui/Flui.vue'
 
 const router = useRouter()
@@ -131,7 +130,6 @@ function isActive(id: string) {
         <button class="tc-btn tc-lang" @click="lang = lang === 'es' ? 'en' : 'es'">
           {{ lang === 'es' ? 'EN' : 'ES' }}
         </button>
-        <NotificationBell />
         <button
           :class="['settings-btn', route.path === '/settings' ? 'active' : '']"
           :title="t('Configuración', 'Settings')"
@@ -177,7 +175,6 @@ function isActive(id: string) {
         <MoonIcon v-else :key="'moon'" :size="16" />
       </Transition>
     </button>
-    <NotificationBell />
     <button
       :class="['settings-btn', route.path === '/settings' ? 'active' : '']"
       :title="t('Configuración', 'Settings')"

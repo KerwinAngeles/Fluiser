@@ -105,15 +105,6 @@ export interface NotificationPreferences {
   checkinEveningTime?: string
 }
 
-export interface AppNotification {
-  id: string
-  title: string
-  body: string
-  url?: string
-  read: boolean
-  createdAt: string
-}
-
 export interface StoreData {
   habits: Habit[]
   completions: Record<string, Completion>

@@ -283,20 +283,21 @@ function exportData() {
 
 <style scoped>
 /* ── Override screen width ── */
-.screen { max-width: 1100px; }
+.screen { max-width: 1100px; padding: 20px 28px 24px; }
+.screen-head { margin-bottom: 16px; }
 
 /* ── Two-column layout ── */
 .settings-layout {
   display: grid;
   grid-template-columns: 360px 1fr;
-  gap: 20px;
+  gap: 16px;
   align-items: start;
 }
 
 .settings-col {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 /* ── Cards ── */
@@ -304,7 +305,7 @@ function exportData() {
   background: var(--bg-elevated);
   border: 1px solid var(--border-default);
   border-radius: var(--r-xl);
-  padding: 22px 24px;
+  padding: 16px 18px;
 }
 .sp-card-title {
   font-size: 10px;
@@ -312,7 +313,7 @@ function exportData() {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-3);
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 /* ── Rows ── */
@@ -321,7 +322,7 @@ function exportData() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 .sp-row-label { font-size: 13px; color: var(--text-2); }
 
@@ -374,9 +375,9 @@ function exportData() {
 .sp-switch.on .sp-switch-thumb { transform: translateX(17px); }
 
 /* ── Accent swatches ── */
-.accent-grid { display: flex; gap: 14px; }
+.accent-grid { display: flex; gap: 12px; }
 .accent-swatch {
-  width: 40px; height: 40px;
+  width: 34px; height: 34px;
   border-radius: 50%;
   border: 2.5px solid transparent;
   background: var(--sw);
@@ -411,8 +412,8 @@ function exportData() {
 .sp-bg-card { height: fit-content; }
 .bg-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 10px;
 }
 .bg-item {
   border-radius: var(--r-lg);
@@ -429,7 +430,7 @@ function exportData() {
 .bg-item.active { border-color: var(--accent); }
 
 .bg-thumb {
-  height: 80px;
+  height: 68px;
   width: 100%;
   background-color: var(--bg-base);
   background-size: cover;
