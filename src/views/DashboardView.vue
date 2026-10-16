@@ -138,7 +138,7 @@ function handleToggle(habit: Habit) {
             <h4 class="text-[16px] font-semibold">{{ t('Para hoy', 'For today') }}</h4>
             <span class="text-text-2 text-[13px] font-semibold">{{ t(`${progress.done} de ${progress.total} completados`, `${progress.done} of ${progress.total} done`) }}</span>
           </div>
-          <TransitionGroup name="list" tag="div" class="relative flex flex-col gap-2 p-2">
+          <TransitionGroup name="list" tag="div" class="relative hoy-list">
             <HabitRow
               v-for="h in due" :key="h.id"
               :habit="h" :date="today"
@@ -284,6 +284,17 @@ function handleToggle(habit: Habit) {
    spacing. */
 .screen { padding: 20px 28px 24px; }
 .screen .card:not(.p-0) { padding: 16px; }
+
+/* Forced with !important: the habit rows kept rendering flush against each
+   other with no visible gap despite Tailwind's gap-2 utility compiling
+   correctly, so this bypasses whatever was winning the cascade and
+   guarantees the separation shows up. */
+.hoy-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  padding: 10px !important;
+}
 
 .rutina {
   display: flex; align-items: center; gap: 10px;

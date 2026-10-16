@@ -13,8 +13,13 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw.ts',
       registerType: 'autoUpdate',
+      // The precached service worker (cache-first, no skipWaiting/clients.claim)
+      // was shadowing every dev change with a stale snapshot — hard refresh
+      // doesn't bypass a SW's fetch interception. Push notifications still
+      // need a real SW to test locally: use `npm run build && npm run preview`
+      // for that instead of relying on the dev server having one.
       devOptions: {
-        enabled: true,
+        enabled: false,
         type: 'module',
       },
       injectManifest: {
