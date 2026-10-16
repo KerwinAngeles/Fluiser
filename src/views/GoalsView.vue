@@ -247,7 +247,7 @@ const headerSub = computed(() => {
           </div>
 
           <div v-if="isOverdue(m)" class="flui-nota" @click.stop>
-            <Flui state="pista" :size="44" />
+            <Flui state="preocupado" :size="44" />
             <span>{{ t('Esta meta venció. ¿La renuevas o la cierras?', 'This goal is overdue. Renew it or close it?') }}</span>
             <div class="acc">
               <button class="btn btn-primary btn-sm" @click="renewMeta(m)">{{ t('Renovar', 'Renew') }}</button>

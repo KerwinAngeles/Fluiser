@@ -7,7 +7,7 @@
 import { computed } from 'vue'
 import { useTheme } from '@/composables/useTheme'
 
-export type FluiState = 'idle' | 'pista' | 'feliz' | 'celebra' | 'enfoque' | 'dormido'
+export type FluiState = 'idle' | 'pista' | 'feliz' | 'celebra' | 'enfoque' | 'dormido' | 'saludo' | 'sorprendido' | 'preocupado'
 
 const props = withDefaults(defineProps<{
   state?: FluiState
@@ -57,9 +57,24 @@ const style = computed(() => ({ width: `${effectiveSize.value}px` }))
         <g class="f-part e-happy"><path class="f-stroke" d="M72 139 Q81 126 90 139" /><path class="f-stroke" d="M110 139 Q119 126 128 139" /></g>
         <g class="f-part e-closed"><path class="f-stroke" d="M72 134 Q81 143 90 134" /><path class="f-stroke" d="M110 134 Q119 143 128 134" /></g>
         <g class="f-part e-sleepy"><path class="f-stroke" d="M73 138 L89 138" /><path class="f-stroke" d="M111 138 L127 138" /></g>
+        <g class="f-part e-grandes">
+          <circle class="f-ink" cx="81" cy="135" r="10.5" /><circle cx="84" cy="131" r="3.4" fill="#fff" />
+          <circle class="f-ink" cx="119" cy="135" r="10.5" /><circle cx="122" cy="131" r="3.4" fill="#fff" />
+          <path class="f-stroke f-stroke-fine" d="M70 116 Q80 109 90 115" />
+          <path class="f-stroke f-stroke-fine" d="M110 115 Q120 109 130 116" />
+        </g>
+        <g class="f-part e-preocupados">
+          <ellipse class="f-ink" cx="81" cy="138" rx="6.5" ry="8.5" /><circle cx="83" cy="134.5" r="2.3" fill="#fff" />
+          <ellipse class="f-ink" cx="119" cy="138" rx="6.5" ry="8.5" /><circle cx="121" cy="134.5" r="2.3" fill="#fff" />
+          <path class="f-stroke f-stroke-fine" d="M71 121 L89 125" />
+          <path class="f-stroke f-stroke-fine" d="M129 121 L111 125" />
+        </g>
         <path class="f-part m-smile f-stroke" d="M92 155 Q100 162 108 155" />
         <path class="f-part m-open f-ink" d="M89 152 Q100 172 111 152 Z" />
         <ellipse class="f-part m-o f-ink" cx="100" cy="158" rx="4.5" ry="5.5" />
+        <ellipse class="f-part m-ogrande f-ink" cx="100" cy="160" rx="7" ry="9" />
+        <path class="f-part m-ondulada f-stroke f-stroke-fine" d="M90 160 Q95 154 100 159 Q105 164 110 158" />
+        <path class="f-part f-sudor" d="M146 100 C149 106 152 109 152 113 A6 6 0 0 1 140 113 C140 109 143 106 146 100Z" />
       </g>
       <g class="f-part f-idea"><circle cx="158" cy="52" r="10" /><path d="M158 30 L158 24" /><path d="M175 38 L180 34" /><path d="M141 38 L136 34" /></g>
     </g>
@@ -77,14 +92,16 @@ const style = computed(() => ({ width: `${effectiveSize.value}px` }))
 .flui { display: block; overflow: visible; flex-shrink: 0; }
 .flui .f-ink { fill: var(--flui-ink); }
 .flui .f-stroke { fill: none; stroke: var(--flui-ink); stroke-width: 4.5; stroke-linecap: round; }
+.flui .f-stroke-fine { stroke-width: 3.6; }
 .flui .f-cheek { fill: #FF9D8A; opacity: .45; }
 .flui .f-part { opacity: 0; transition: opacity .25s; }
 .flui .f-shadow { fill: #000; opacity: .14; transform-box: fill-box; transform-origin: center; }
 .flui .f-body, .flui .f-float { transform-box: view-box; transform-origin: 100px 190px; }
 .flui .f-sprout { transform-box: view-box; transform-origin: 100px 40px; }
 .flui .f-eye { transform-box: fill-box; transform-origin: center; }
-.flui .f-leaf { fill: #5E9E6B; }
+.flui .f-leaf { fill: #5E9E6B; transform-box: view-box; transform-origin: 106px 14px; }
 .flui .f-leaf2 { fill: #9FD39B; }
+.flui .f-sudor { fill: #9FE6FF; }
 .flui .f-stem { fill: none; stroke: #5E9E6B; stroke-width: 4; stroke-linecap: round; }
 .flui .f-spark { fill: var(--amber); }
 .flui .f-z { font-family: var(--font-display); font-weight: 800; fill: currentColor; opacity: .7; }
@@ -96,7 +113,10 @@ const style = computed(() => ({ width: `${effectiveSize.value}px` }))
 .flui[data-state="feliz"] .e-happy, .flui[data-state="feliz"] .m-open,
 .flui[data-state="celebra"] .e-happy, .flui[data-state="celebra"] .m-open, .flui[data-state="celebra"] .f-sparks,
 .flui[data-state="enfoque"] .e-closed, .flui[data-state="enfoque"] .m-smile,
-.flui[data-state="dormido"] .e-sleepy, .flui[data-state="dormido"] .m-o, .flui[data-state="dormido"] .f-zz { opacity: 1; }
+.flui[data-state="dormido"] .e-sleepy, .flui[data-state="dormido"] .m-o, .flui[data-state="dormido"] .f-zz,
+.flui[data-state="saludo"] .e-happy, .flui[data-state="saludo"] .m-smile,
+.flui[data-state="sorprendido"] .e-grandes, .flui[data-state="sorprendido"] .m-ogrande,
+.flui[data-state="preocupado"] .e-preocupados, .flui[data-state="preocupado"] .m-ondulada, .flui[data-state="preocupado"] .f-sudor { opacity: 1; }
 
 @media (prefers-reduced-motion: no-preference) {
   .flui .f-sprout { animation: f-sway 4s ease-in-out infinite; }
@@ -117,6 +137,11 @@ const style = computed(() => ({ width: `${effectiveSize.value}px` }))
   .flui[data-state="dormido"] .f-z { animation: f-rise 3s ease-out infinite; }
   .flui[data-state="dormido"] .f-z:nth-child(2) { animation-delay: 1s; }
   .flui[data-state="dormido"] .f-z:nth-child(3) { animation-delay: 2s; }
+  .flui[data-state="saludo"] .f-leaf { animation: f-wave-leaf 1.1s ease-in-out infinite; }
+  .flui[data-state="saludo"] .f-body { animation: f-tilt-greet 2.2s ease-in-out infinite; }
+  .flui[data-state="sorprendido"] .f-body { animation: f-pop .55s cubic-bezier(.34,1.56,.64,1) 1; }
+  .flui[data-state="preocupado"] .f-body { animation: f-shake 2.4s linear infinite; }
+  .flui[data-state="preocupado"] .f-sudor { animation: f-sweat 1.8s ease-in infinite; }
 }
 @keyframes f-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
 @keyframes f-shadow { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(.86); } }
@@ -129,4 +154,30 @@ const style = computed(() => ({ width: `${effectiveSize.value}px` }))
 @keyframes f-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 @keyframes f-doze { 0%, 100% { transform: rotate(-3deg) translateY(2px); } 50% { transform: rotate(3deg); } }
 @keyframes f-rise { 0% { transform: translate(0, 0); opacity: 0; } 25% { opacity: 1; } 100% { transform: translate(14px, -34px); opacity: 0; } }
+@keyframes f-wave-leaf {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(-32deg); }
+  40% { transform: rotate(20deg); }
+  60% { transform: rotate(-28deg); }
+  80% { transform: rotate(14deg); }
+}
+@keyframes f-tilt-greet { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-6deg); } 60% { transform: rotate(4deg); } }
+@keyframes f-pop {
+  0% { transform: translateY(0) scale(1, 1); }
+  30% { transform: translateY(-14px) scale(.94, 1.08); }
+  65% { transform: translateY(0) scale(1.06, .94); }
+  100% { transform: translateY(0) scale(1, 1); }
+}
+@keyframes f-shake {
+  0%, 30%, 100% { transform: rotate(0); }
+  4% { transform: rotate(-5deg); } 8% { transform: rotate(5deg); }
+  12% { transform: rotate(-4deg); } 16% { transform: rotate(4deg); }
+  20% { transform: rotate(-2deg); } 24% { transform: rotate(2deg); }
+}
+@keyframes f-sweat {
+  0% { transform: translateY(0); opacity: 0; }
+  20% { opacity: 1; }
+  85% { transform: translateY(18px); opacity: 1; }
+  100% { transform: translateY(24px); opacity: 0; }
+}
 </style>

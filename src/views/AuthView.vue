@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import Flui from '@/components/ui/Flui.vue'
 
@@ -7,6 +7,7 @@ const auth = useAuthStore()
 const loadingGoogle = ref(false)
 const loadingDemo = ref(false)
 const error = ref('')
+const fluiState = computed(() => (error.value ? 'preocupado' : 'idle'))
 
 async function loginGoogle() {
   error.value = ''
@@ -38,7 +39,7 @@ async function loginDemo() {
         </div>
         <div class="auth-visual-flui">
           <div class="auth-flui-glow" />
-          <Flui state="idle" :size="220" />
+          <Flui :state="fluiState" :size="220" />
         </div>
       </div>
       <div class="auth-wave-wrap" aria-hidden="true">
