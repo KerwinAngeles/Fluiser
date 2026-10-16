@@ -285,15 +285,16 @@ function handleToggle(habit: Habit) {
 .screen { padding: 20px 28px 24px; }
 .screen .card:not(.p-0) { padding: 16px; }
 
-/* Forced with !important: the habit rows kept rendering flush against each
-   other with no visible gap despite Tailwind's gap-2 utility compiling
-   correctly, so this bypasses whatever was winning the cascade and
-   guarantees the separation shows up. */
+/* The gap between rows was real but invisible: HabitRow and this card share
+   the exact same --bg-surface tone, so the gap and the rows read as one
+   solid block. A darker backdrop here (--bg-base, the "recessed" tone used
+   elsewhere for nested wells) makes each row pop as its own distinct card. */
 .hoy-list {
   display: flex !important;
   flex-direction: column !important;
-  gap: 12px !important;
+  gap: 10px !important;
   padding: 10px !important;
+  background: var(--bg-base);
 }
 
 .rutina {
