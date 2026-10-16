@@ -122,7 +122,7 @@ function handleToggle(habit: Habit) {
     </div>
 
     <!-- Franja — reuses KPIs already computed by useFlowJournal + the streak store -->
-    <div class="franja compacta mb-4">
+    <div class="franja compacta mb-5">
       <div><b class="tnum">{{ bestStreak ? t(`${bestStreak.s.current} días`, `${bestStreak.s.current} days`) : t('Sin racha', 'No streak') }}</b><span>{{ t('Racha más larga', 'Longest streak') }}</span></div>
       <div><b class="tnum">{{ t(`${progress.done} de ${progress.total}`, `${progress.done} of ${progress.total}`) }}</b><span>{{ t('Hábitos de hoy', `Today's habits`) }}</span></div>
       <div v-if="weekStats.weekCount === 0" class="vacio"><b>{{ t('Sin sesiones', 'No sessions') }}</b><span>{{ t('Sesiones limpias, 7 días', 'Clean sessions, 7 days') }}</span></div>
@@ -138,7 +138,7 @@ function handleToggle(habit: Habit) {
             <h4 class="text-[16px] font-semibold">{{ t('Para hoy', 'For today') }}</h4>
             <span class="text-text-2 text-[13px] font-semibold">{{ t(`${progress.done} de ${progress.total} completados`, `${progress.done} of ${progress.total} done`) }}</span>
           </div>
-          <TransitionGroup name="list" tag="div" class="relative">
+          <TransitionGroup name="list" tag="div" class="relative flex flex-col gap-2 p-2">
             <HabitRow
               v-for="h in due" :key="h.id"
               :habit="h" :date="today"
